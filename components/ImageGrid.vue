@@ -1,192 +1,149 @@
 <template>
-  <div class="p-4">
-    <!-- Input para cargar múltiples imágenes -->
-    <input type="file" multiple accept="image/*" @change="onFilesSelected" />
-
-    <!-- Grid fijo para mostrar las imágenes -->
-    <div class="grid grid-cols-3 gap-4 mt-4">
-      <!-- Dentro del grid -->
+  <div>
+    <input type="file" multiple accept="image/*" @change="handleFiles" />
+    <div class="grid">
       <div
-        v-for="(img, index) in images"
+        v-for="(image, index) in images"
         :key="index"
-        class="relative cursor-pointer transition-all flex items-center justify-center
-               rounded border-4 w-48 h-48 m-2"
-        :class="selectedIndex === index
-          ? 'border-blue-500 shadow-lg shadow-blue-300'
-          : 'border-gray-300'"
-        @click="selectImage(index)"
+        :class="['image-frame', { selected: selectedImage === index }]"
+        @click="toggleSelection(index)"
       >
         <canvas
-          :ref="setCanvasRef(index)"
-          class="max-w-full max-h-full object-contain"
+          :ref="el => canvasRefs[index] = el"
+          class="canvas"
         ></canvas>
       </div>
-
     </div>
 
-    <!-- Botones de transformación -->
-    <div class="flex gap-2 mt-4">
-      <button
-        class="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
-        :disabled="selectedIndex === null"
-        @click="rotateLeft"
-      >Rotate Left</button>
-
-      <button
-        class="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
-        :disabled="selectedIndex === null"
-        @click="rotateRight"
-      >Rotate Right</button>
-
-      <button
-        class="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
-        :disabled="selectedIndex === null"
-        @click="flipHorizontal"
-      >Flip H</button>
-
-      <button
-        class="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
-        :disabled="selectedIndex === null"
-        @click="flipVertical"
-      >Flip V</button>
-    </div>
-
-    <!-- Botón para guardar todas las imágenes -->
-    <div class="mt-4">
-      <button
-        class="px-4 py-2 rounded bg-green-500 text-white disabled:opacity-50"
-        :disabled="images.length === 0"
-        @click="saveAll"
-      >Save All (JPG)</button>
+    <div class="controls">
+      <button @click="rotate" :disabled="selectedImage === null">Rotate</button>
+      <button @click="flipH" :disabled="selectedImage === null">Flip H</button>
+      <button @click="flipV" :disabled="selectedImage === null">Flip V</button>
+      <button @click="zoomIn" :disabled="selectedImage === null">Zoom In</button>
+      <button @click="zoomOut" :disabled="selectedImage === null">Zoom Out</button>
+      <button @click="saveAll" :disabled="images.length === 0">Save All</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 
 const images = ref([])
-const canvases = ref([])
-const selectedIndex = ref(null)
+const selectedImage = ref(null)
+const canvasRefs = []
+const transforms = ref([])
 
-// Manejo de canvas refs dinámicos
-const setCanvasRef = (index) => (el) => {
-  canvases.value[index] = el
-}
+const handleFiles = async (event) => {
+  const files = event.target.files
+  images.value = []
+  transforms.value = []
 
-// Seleccionar una imagen del grid
-const selectImage = (index) => {
-  if (selectedIndex.value === index) {
-    // Si clicas la misma, se deselecciona
-    selectedIndex.value = null
-  } else {
-    selectedIndex.value = index
+  for (const file of files) {
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    await new Promise(resolve => { img.onload = resolve })
+
+    images.value.push(img)
+    transforms.value.push({ rotate: 0, scaleX: 1, scaleY: 1, zoom: 1 })
   }
+
+  await nextTick()
+  images.value.forEach((img, index) => drawImage(index))
 }
 
-// Dibujar imagen en canvas (escalada al frame)
-function drawImageOnCanvas(canvas, imageData) {
+const toggleSelection = (index) => {
+  selectedImage.value = selectedImage.value === index ? null : index
+}
+
+const drawImage = (index) => {
+  const canvas = canvasRefs[index]
   if (!canvas) return
   const ctx = canvas.getContext('2d')
-  const img = new Image()
-  img.onload = () => {
-    // Ajuste del canvas al tamaño del contenedor
-    canvas.width = 200
-    canvas.height = 200
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const { rotate, scaleX, scaleY, zoom } = transforms.value[index]
 
-    // Calcular escala para que entre en el frame
-    const scale = Math.min(canvas.width / img.width, canvas.height / img.height)
-    const x = (canvas.width / 2) - (img.width / 2) * scale
-    const y = (canvas.height / 2) - (img.height / 2) * scale
-    ctx.setTransform(scale, 0, 0, scale, x, y)
-    ctx.drawImage(img, 0, 0)
-  }
-  img.src = imageData
+  canvas.width = 200
+  canvas.height = 200
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  ctx.save()
+  ctx.translate(canvas.width / 2, canvas.height / 2)
+  ctx.rotate((rotate * Math.PI) / 180)
+  ctx.scale(scaleX * zoom, scaleY * zoom)
+
+  const img = images.value[index]
+  const scale = Math.min(canvas.width / img.width, canvas.height / img.height)
+  const newWidth = img.width * scale
+  const newHeight = img.height * scale
+
+  ctx.drawImage(img, -newWidth / 2, -newHeight / 2, newWidth, newHeight)
+  ctx.restore()
 }
 
-// Cargar imágenes seleccionadas
-const onFilesSelected = (event) => {
-  const files = event.target.files
-  if (!files.length) return
-
-  images.value = []
-  canvases.value = []
-  selectedIndex.value = null
-
-  Array.from(files).forEach((file, index) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      images.value.push({ src: e.target.result, rotation: 0, flipH: false, flipV: false })
-      setTimeout(() => {
-        drawTransformed(index)
-      }, 50)
-    }
-    reader.readAsDataURL(file)
-  })
+const rotate = () => {
+  if (selectedImage.value === null) return
+  transforms.value[selectedImage.value].rotate += 90
+  drawImage(selectedImage.value)
+}
+const flipH = () => {
+  if (selectedImage.value === null) return
+  transforms.value[selectedImage.value].scaleX *= -1
+  drawImage(selectedImage.value)
+}
+const flipV = () => {
+  if (selectedImage.value === null) return
+  transforms.value[selectedImage.value].scaleY *= -1
+  drawImage(selectedImage.value)
+}
+const zoomIn = () => {
+  if (selectedImage.value === null) return
+  transforms.value[selectedImage.value].zoom *= 1.2
+  drawImage(selectedImage.value)
+}
+const zoomOut = () => {
+  if (selectedImage.value === null) return
+  transforms.value[selectedImage.value].zoom *= 0.8
+  drawImage(selectedImage.value)
 }
 
-// Dibujar con transformaciones aplicadas
-function drawTransformed(index) {
-  const canvas = canvases.value[index]
-  const ctx = canvas?.getContext('2d')
-  if (!canvas || !ctx) return
-
-  const img = new Image()
-  const data = images.value[index]
-  img.onload = () => {
-    canvas.width = 200
-    canvas.height = 200
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    const scale = Math.min(canvas.width / img.width, canvas.height / img.height)
-    const x = canvas.width / 2
-    const y = canvas.height / 2
-
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate((data.rotation * Math.PI) / 180)
-    ctx.scale(data.flipH ? -scale : scale, data.flipV ? -scale : scale)
-    ctx.drawImage(img, -img.width / 2, -img.height / 2)
-    ctx.restore()
-  }
-  img.src = data.src
-}
-
-// Transformaciones
-const rotateLeft = () => {
-  if (selectedIndex.value === null) return
-  images.value[selectedIndex.value].rotation -= 90
-  drawTransformed(selectedIndex.value)
-}
-
-const rotateRight = () => {
-  if (selectedIndex.value === null) return
-  images.value[selectedIndex.value].rotation += 90
-  drawTransformed(selectedIndex.value)
-}
-
-const flipHorizontal = () => {
-  if (selectedIndex.value === null) return
-  images.value[selectedIndex.value].flipH = !images.value[selectedIndex.value].flipH
-  drawTransformed(selectedIndex.value)
-}
-
-const flipVertical = () => {
-  if (selectedIndex.value === null) return
-  images.value[selectedIndex.value].flipV = !images.value[selectedIndex.value].flipV
-  drawTransformed(selectedIndex.value)
-}
-
-// Guardar todas las imágenes como JPG
 const saveAll = () => {
-  images.value.forEach((img, index) => {
-    const canvas = canvases.value[index]
-    if (!canvas) return
+  images.value.forEach((_, index) => {
+    const canvas = canvasRefs[index]
     const link = document.createElement('a')
-    link.download = `image_${index + 1}.jpg`
-    link.href = canvas.toDataURL('image/jpeg', 0.9)
+    link.download = `image-${index + 1}.jpg`
+    link.href = canvas.toDataURL('image/jpeg')
     link.click()
   })
 }
 </script>
+
+<style scoped>
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 200px);
+  gap: 10px;
+  margin-top: 10px;
+}
+.image-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ccc;
+  overflow: hidden;
+  cursor: pointer;
+}
+.image-frame.selected {
+  outline: 4px solid #007BFF !important;
+  box-shadow: 0 0 12px rgba(0, 123, 255, 0.8) !important;
+}
+.canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+.controls {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+</style>
