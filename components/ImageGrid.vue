@@ -1,149 +1,328 @@
 <template>
-  <div>
-    <input type="file" multiple accept="image/*" @change="handleFiles" />
-    <div class="grid">
-      <div
-        v-for="(image, index) in images"
-        :key="index"
-        :class="['image-frame', { selected: selectedImage === index }]"
-        @click="toggleSelection(index)"
-      >
-        <canvas
-          :ref="el => canvasRefs[index] = el"
-          class="canvas"
-        ></canvas>
-      </div>
+  <div class="wrapper">
+    <!-- Controls: selector + file input + save all -->
+    <div class="controls">
+      <label>
+        Slot:
+        <select v-model="selectedSlot">
+          <option disabled value="">-- select slot --</option>
+          <option v-for="s in allSlots" :key="s" :value="s">{{ s }}</option>
+        </select>
+      </label>
+
+      <label>
+        Load image:
+        <input ref="fileInput" type="file" accept="image/*" @change="handleFileInput" />
+      </label>
+
+      <button @click="clearSelected" :disabled="!selectedSlot">Deselect</button>
+      <button @click="saveAll" :disabled="!hasAnyImage">Save All (JPG)</button>
     </div>
 
-    <div class="controls">
-      <button @click="rotate" :disabled="selectedImage === null">Rotate</button>
-      <button @click="flipH" :disabled="selectedImage === null">Flip H</button>
-      <button @click="flipV" :disabled="selectedImage === null">Flip V</button>
-      <button @click="zoomIn" :disabled="selectedImage === null">Zoom In</button>
-      <button @click="zoomOut" :disabled="selectedImage === null">Zoom Out</button>
-      <button @click="saveAll" :disabled="images.length === 0">Save All</button>
+    <!-- Grid: 3 rows (3 vertical | 2 horizontal | 3 horizontal) -->
+    <div class="grid">
+      <!-- Row1: Serio, Smiling, Side (vertical) -->
+      <div
+        class="frame serio"
+        :class="{ active: selectedSlot === 'Serio' }"
+        @click="selectSlot('Serio')"
+      >
+        <canvas ref="cSerio"></canvas>
+        <div v-if="!images.Serio" class="placeholder">Serio</div>
+      </div>
+
+      <div
+        class="frame smiling"
+        :class="{ active: selectedSlot === 'Smiling' }"
+        @click="selectSlot('Smiling')"
+      >
+        <canvas ref="cSmiling"></canvas>
+        <div v-if="!images.Smiling" class="placeholder">Smiling</div>
+      </div>
+
+      <div
+        class="frame side"
+        :class="{ active: selectedSlot === 'Side' }"
+        @click="selectSlot('Side')"
+      >
+        <canvas ref="cSide"></canvas>
+        <div v-if="!images.Side" class="placeholder">Side</div>
+      </div>
+
+      <!-- Row2: Maxi, Mand (horizontal) + empty cell to preserve grid -->
+      <div class="row2">
+        <div
+          class="frame maxi"
+          :class="{ active: selectedSlot === 'Maxi' }"
+          @click="selectSlot('Maxi')"
+        >
+          <canvas ref="cMaxi"></canvas>
+          <div v-if="!images.Maxi" class="placeholder">Maxi</div>
+        </div>
+
+        <div
+          class="frame mand"
+          :class="{ active: selectedSlot === 'Mand' }"
+          @click="selectSlot('Mand')"
+        >
+          <canvas ref="cMand"></canvas>
+          <div v-if="!images.Mand" class="placeholder">Mand</div>
+        </div>
+      </div>
+
+      <div class="frame empty"></div> <!-- mantiene estructura de 3 columnas -->
+
+      <!-- Row3: Rite, Fore, Left (horizontal) -->
+      <div
+        class="frame rite"
+        :class="{ active: selectedSlot === 'Rite' }"
+        @click="selectSlot('Rite')"
+      >
+        <canvas ref="cRite"></canvas>
+        <div v-if="!images.Rite" class="placeholder">Rite</div>
+      </div>
+
+      <div
+        class="frame fore"
+        :class="{ active: selectedSlot === 'Fore' }"
+        @click="selectSlot('Fore')"
+      >
+        <canvas ref="cFore"></canvas>
+        <div v-if="!images.Fore" class="placeholder">Fore</div>
+      </div>
+
+      <div
+        class="frame left"
+        :class="{ active: selectedSlot === 'Left' }"
+        @click="selectSlot('Left')"
+      >
+        <canvas ref="cLeft"></canvas>
+        <div v-if="!images.Left" class="placeholder">Left</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 
-const images = ref([])
-const selectedImage = ref(null)
-const canvasRefs = []
-const transforms = ref([])
+const allSlots = ['Serio','Smiling','Side','Maxi','Mand','Rite','Fore','Left']
+const selectedSlot = ref('')          // nombre del slot activo
+const images = reactive({})           // map slot -> dataURL
+const fileInput = ref(null)
 
-const handleFiles = async (event) => {
-  const files = event.target.files
-  images.value = []
-  transforms.value = []
+// canvas refs
+const cSerio = ref(null)
+const cSmiling = ref(null)
+const cSide = ref(null)
+const cMaxi = ref(null)
+const cMand = ref(null)
+const cRite = ref(null)
+const cFore = ref(null)
+const cLeft = ref(null)
 
-  for (const file of files) {
-    const img = new Image()
-    img.src = URL.createObjectURL(file)
-    await new Promise(resolve => { img.onload = resolve })
+const canvasMap = {
+  Serio: cSerio,
+  Smiling: cSmiling,
+  Side: cSide,
+  Maxi: cMaxi,
+  Mand: cMand,
+  Rite: cRite,
+  Fore: cFore,
+  Left: cLeft
+}
 
-    images.value.push(img)
-    transforms.value.push({ rotate: 0, scaleX: 1, scaleY: 1, zoom: 1 })
+const hasAnyImage = computed(() => Object.keys(images).length > 0)
+
+function selectSlot(name) {
+  selectedSlot.value = (selectedSlot.value === name) ? '' : name
+  // set the select dropdown too
+}
+
+function clearSelected() {
+  selectedSlot.value = ''
+}
+
+// file load from top control
+function handleFileInput(e) {
+  const file = e.target.files && e.target.files[0]
+  if (!file) return
+  if (!selectedSlot.value) {
+    alert('Select a slot first (click a frame or choose from the dropdown).')
+    fileInput.value.value = ''
+    return
   }
 
-  await nextTick()
-  images.value.forEach((img, index) => drawImage(index))
+  const reader = new FileReader()
+  reader.onload = async (ev) => {
+    images[selectedSlot.value] = ev.target.result
+    await nextTick()
+    drawSlot(selectedSlot.value)
+    fileInput.value.value = ''
+  }
+  reader.readAsDataURL(file)
 }
 
-const toggleSelection = (index) => {
-  selectedImage.value = selectedImage.value === index ? null : index
-}
+// central draw function (scale+center)
+function drawSlot(slotName) {
+  const canvasRef = canvasMap[slotName]
+  const canvas = canvasRef?.value
+  const dataUrl = images[slotName]
+  if (!canvas || !dataUrl) return
 
-const drawImage = (index) => {
-  const canvas = canvasRefs[index]
-  if (!canvas) return
   const ctx = canvas.getContext('2d')
-  const { rotate, scaleX, scaleY, zoom } = transforms.value[index]
+  const img = new Image()
+  img.onload = () => {
+    // set internal pixel size to match CSS size
+    canvas.width = Math.round(canvas.clientWidth)
+    canvas.height = Math.round(canvas.clientHeight)
 
-  canvas.width = 200
-  canvas.height = 200
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // white background
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  ctx.save()
-  ctx.translate(canvas.width / 2, canvas.height / 2)
-  ctx.rotate((rotate * Math.PI) / 180)
-  ctx.scale(scaleX * zoom, scaleY * zoom)
+    const scale = Math.min(canvas.width / img.width, canvas.height / img.height)
+    const w = Math.round(img.width * scale)
+    const h = Math.round(img.height * scale)
+    const x = Math.round((canvas.width - w) / 2)
+    const y = Math.round((canvas.height - h) / 2)
 
-  const img = images.value[index]
-  const scale = Math.min(canvas.width / img.width, canvas.height / img.height)
-  const newWidth = img.width * scale
-  const newHeight = img.height * scale
-
-  ctx.drawImage(img, -newWidth / 2, -newHeight / 2, newWidth, newHeight)
-  ctx.restore()
+    ctx.drawImage(img, x, y, w, h)
+  }
+  img.src = dataUrl
 }
 
-const rotate = () => {
-  if (selectedImage.value === null) return
-  transforms.value[selectedImage.value].rotate += 90
-  drawImage(selectedImage.value)
-}
-const flipH = () => {
-  if (selectedImage.value === null) return
-  transforms.value[selectedImage.value].scaleX *= -1
-  drawImage(selectedImage.value)
-}
-const flipV = () => {
-  if (selectedImage.value === null) return
-  transforms.value[selectedImage.value].scaleY *= -1
-  drawImage(selectedImage.value)
-}
-const zoomIn = () => {
-  if (selectedImage.value === null) return
-  transforms.value[selectedImage.value].zoom *= 1.2
-  drawImage(selectedImage.value)
-}
-const zoomOut = () => {
-  if (selectedImage.value === null) return
-  transforms.value[selectedImage.value].zoom *= 0.8
-  drawImage(selectedImage.value)
+// redraw all (used on resize)
+function redrawAll() {
+  Object.keys(images).forEach(name => {
+    drawSlot(name)
+  })
 }
 
-const saveAll = () => {
-  images.value.forEach((_, index) => {
-    const canvas = canvasRefs[index]
+// Save all canvases that have content
+function saveAll() {
+  allSlots.forEach(name => {
+    const canvas = canvasMap[name].value
+    if (!canvas) return
+    // ensure at least something drawn - we accept blank white if no image
     const link = document.createElement('a')
-    link.download = `image-${index + 1}.jpg`
-    link.href = canvas.toDataURL('image/jpeg')
+    link.download = `${name}.jpg`
+    link.href = canvas.toDataURL('image/jpeg', 0.92)
     link.click()
   })
 }
+
+let resizeHandler = null
+onMounted(() => {
+  // draw existing images if any (rare)
+  nextTick(() => {
+    Object.keys(images).forEach(drawSlot)
+  })
+  resizeHandler = () => {
+    // small debounce
+    setTimeout(redrawAll, 80)
+  }
+  window.addEventListener('resize', resizeHandler)
+})
+onBeforeUnmount(() => {
+  if (resizeHandler) window.removeEventListener('resize', resizeHandler)
+})
 </script>
 
 <style scoped>
+/* outer wrapper */
+.wrapper {
+  padding: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* controls line */
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* main grid 3 columns by 3 rows */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 200px);
-  gap: 10px;
-  margin-top: 10px;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 420px 220px 220px; /* row heights: tall, medium, medium */
+  gap: 12px;
 }
-.image-frame {
+
+/* frame visual */
+.frame {
   position: relative;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ccc;
-  overflow: hidden;
-  cursor: pointer;
 }
-.image-frame.selected {
-  outline: 4px solid #007BFF !important;
-  box-shadow: 0 0 12px rgba(0, 123, 255, 0.8) !important;
-}
-.canvas {
-  max-width: 100%;
-  max-height: 100%;
-}
-.controls {
-  margin-top: 20px;
+
+/* la fila 2 ocupa las 3 columnas y centra los 2 frames */
+.row2 {
+  grid-column: 1 / span 3;
+  grid-row: 2;
   display: flex;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px; /* espacio entre Maxi y Mand */
+}
+.row2 .frame {
+  flex: 0 0 30%; /* cada uno ocupa ~30% del ancho total */
+  max-width: 360px; /* opcional, para no crecer demasiado */
+}
+
+
+/* canvas fill the frame */
+.frame canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* placeholder label when no image */
+.placeholder {
+  position: absolute;
+  font-weight: 600;
+  color: #666;
+  pointer-events: none;
+}
+
+/* active selection highlight */
+.frame.active {
+  outline: 4px solid #007bff;
+  box-shadow: 0 6px 18px rgba(0,123,255,0.12);
+}
+
+/* assign grid areas by class */
+.serio { grid-column: 1; grid-row: 1; }
+.smiling { grid-column: 2; grid-row: 1; }
+.side { grid-column: 3; grid-row: 1; }
+
+.maxi { grid-column: 1; grid-row: 2; }
+.mand { grid-column: 2; grid-row: 2; }
+/* right cell 2,3 is empty, so we keep .empty at grid-column:3,row:2 */
+
+.rite { grid-column: 1; grid-row: 3; }
+.fore { grid-column: 2; grid-row: 3; }
+.left { grid-column: 3; grid-row: 3; }
+
+/* responsive: on narrow screens stack rows */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(8, 220px);
+  }
+  .serio, .smiling, .side, .maxi, .mand, .rite, .fore, .left {
+    grid-column: 1 !important;
+  }
 }
 </style>
