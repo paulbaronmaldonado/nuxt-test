@@ -1,328 +1,422 @@
 <template>
-  <div class="wrapper">
-    <!-- Controls: selector + file input + save all -->
-    <div class="controls">
-      <label>
-        Slot:
-        <select v-model="selectedSlot">
-          <option disabled value="">-- select slot --</option>
-          <option v-for="s in allSlots" :key="s" :value="s">{{ s }}</option>
-        </select>
-      </label>
-
-      <label>
-        Load image:
-        <input ref="fileInput" type="file" accept="image/*" @change="handleFileInput" />
-      </label>
-
-      <button @click="clearSelected" :disabled="!selectedSlot">Deselect</button>
-      <button @click="saveAll" :disabled="!hasAnyImage">Save All (JPG)</button>
-    </div>
-
-    <!-- Grid: 3 rows (3 vertical | 2 horizontal | 3 horizontal) -->
-    <div class="grid">
-      <!-- Row1: Serio, Smiling, Side (vertical) -->
-      <div
-        class="frame serio"
-        :class="{ active: selectedSlot === 'Serio' }"
-        @click="selectSlot('Serio')"
-      >
-        <canvas ref="cSerio"></canvas>
-        <div v-if="!images.Serio" class="placeholder">Serio</div>
-      </div>
-
-      <div
-        class="frame smiling"
-        :class="{ active: selectedSlot === 'Smiling' }"
-        @click="selectSlot('Smiling')"
-      >
-        <canvas ref="cSmiling"></canvas>
-        <div v-if="!images.Smiling" class="placeholder">Smiling</div>
-      </div>
-
-      <div
-        class="frame side"
-        :class="{ active: selectedSlot === 'Side' }"
-        @click="selectSlot('Side')"
-      >
-        <canvas ref="cSide"></canvas>
-        <div v-if="!images.Side" class="placeholder">Side</div>
-      </div>
-
-      <!-- Row2: Maxi, Mand (horizontal) + empty cell to preserve grid -->
-      <div class="row2">
-        <div
-          class="frame maxi"
-          :class="{ active: selectedSlot === 'Maxi' }"
-          @click="selectSlot('Maxi')"
-        >
-          <canvas ref="cMaxi"></canvas>
-          <div v-if="!images.Maxi" class="placeholder">Maxi</div>
+  <!-- root con variables CSS reactivas vía :style -->
+  <div class="app-root" :style="rootStyle">
+    <!-- IZQUIERDA: grid con 3 filas (fila1 verticales, fila2 2 centrados, fila3 horizontales) -->
+    <div class="left-column" ref="leftCol">
+      <!-- FILA 1 -->
+      <div class="row row-1">
+        <div class="frame frame-vertical" data-slot="Serio">
+          <canvas v-if="images.Serio" ref="cSerio"></canvas>
+          <div v-else class="placeholder">Serio</div>
         </div>
 
-        <div
-          class="frame mand"
-          :class="{ active: selectedSlot === 'Mand' }"
-          @click="selectSlot('Mand')"
-        >
-          <canvas ref="cMand"></canvas>
-          <div v-if="!images.Mand" class="placeholder">Mand</div>
+        <div class="frame frame-vertical" data-slot="Face">
+          <canvas v-if="images.Face" ref="cFace"></canvas>
+          <div v-else class="placeholder">Face</div>
+        </div>
+
+        <div class="frame frame-vertical" data-slot="Side">
+          <canvas v-if="images.Side" ref="cSide"></canvas>
+          <div v-else class="placeholder">Side</div>
         </div>
       </div>
 
-      <div class="frame empty"></div> <!-- mantiene estructura de 3 columnas -->
+      <!-- FILA 2 (dos frames centrados, mismos tamaños que fila 3) -->
+      <div class="row row-2">
+        <div class="row2-inner">
+          <div class="frame frame-horizontal" data-slot="Maxi">
+            <canvas v-if="images.Maxi" ref="cMaxi"></canvas>
+            <div v-else class="placeholder">Maxi</div>
+          </div>
 
-      <!-- Row3: Rite, Fore, Left (horizontal) -->
-      <div
-        class="frame rite"
-        :class="{ active: selectedSlot === 'Rite' }"
-        @click="selectSlot('Rite')"
-      >
-        <canvas ref="cRite"></canvas>
-        <div v-if="!images.Rite" class="placeholder">Rite</div>
+          <div class="frame frame-horizontal" data-slot="Mand">
+            <canvas v-if="images.Mand" ref="cMand"></canvas>
+            <div v-else class="placeholder">Mand</div>
+          </div>
+        </div>
       </div>
 
-      <div
-        class="frame fore"
-        :class="{ active: selectedSlot === 'Fore' }"
-        @click="selectSlot('Fore')"
-      >
-        <canvas ref="cFore"></canvas>
-        <div v-if="!images.Fore" class="placeholder">Fore</div>
-      </div>
+      <!-- FILA 3 -->
+      <div class="row row-3">
+        <div class="frame frame-horizontal" data-slot="Rite">
+          <canvas v-if="images.Rite" ref="cRite"></canvas>
+          <div v-else class="placeholder">Rite</div>
+        </div>
 
-      <div
-        class="frame left"
-        :class="{ active: selectedSlot === 'Left' }"
-        @click="selectSlot('Left')"
-      >
-        <canvas ref="cLeft"></canvas>
-        <div v-if="!images.Left" class="placeholder">Left</div>
+        <div class="frame frame-horizontal" data-slot="Fore">
+          <canvas v-if="images.Fore" ref="cFore"></canvas>
+          <div v-else class="placeholder">Fore</div>
+        </div>
+
+        <div class="frame frame-horizontal" data-slot="Left">
+          <canvas v-if="images.Left" ref="cLeft"></canvas>
+          <div v-else class="placeholder">Left</div>
+        </div>
       </div>
     </div>
+
+    <!-- DERECHA: panel de controles -->
+    <aside class="right-panel">
+      <section class="panel-section">
+        <h3>1. Selección de slot</h3>
+        <p class="muted">Selecciona el slot y carga la imagen.</p>
+
+        <label class="label-inline">
+          Slot:
+          <select v-model="selectedSlot">
+            <option value="">-- seleccionar --</option>
+            <option v-for="s in slots" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </label>
+
+        <label class="label-inline">
+          Imagen:
+          <input ref="fileInput" type="file" accept="image/*" @change="handleFile" />
+        </label>
+      </section>
+
+      <section class="panel-section">
+        <h3>2. Controles</h3>
+        <p class="muted">Controles básicos de prueba.</p>
+        <button @click="clearSelected" :disabled="!selectedSlot" class="btn">Deseleccionar</button>
+        <button @click="saveAll" :disabled="!hasAnyImage" class="btn primary">Save All (JPG)</button>
+      </section>
+
+      <section class="panel-section grow">
+        <h3>3. Vista ↔ Archivo</h3>
+        <p class="muted">Se mostrará el mapping cuando se use "USAR ESTOS".</p>
+
+        <table class="map-table">
+          <thead><tr><th>Vista</th><th>Archivo</th></tr></thead>
+          <tbody>
+            <tr v-for="s in slots" :key="s">
+              <td class="col-vista">{{ s }}</td>
+              <td class="col-file">{{ fileNames[s] || '---' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </aside>
   </div>
 </template>
 
 <script setup>
+// ImageGrid.vue — implementación robusta de layout 3-2-3 con cálculo dinámico de tamaños.
+// Comentarios en español.
+
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 
-const allSlots = ['Serio','Smiling','Side','Maxi','Mand','Rite','Fore','Left']
-const selectedSlot = ref('')          // nombre del slot activo
-const images = reactive({})           // map slot -> dataURL
+/* ---------- Config ---------- */
+const slots = ['Serio','Face','Side','Maxi','Mand','Rite','Fore','Left']
+
+/* estado de imágenes (obj Image) y nombres de archivo */
+const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
+const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
+
+/* refs a canvases y contenedor */
+const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
+      cMaxi = ref(null), cMand = ref(null), cRite = ref(null),
+      cFore = ref(null), cLeft = ref(null)
+const refsMap = { Serio: cSerio, Face: cFace, Side: cSide,
+                  Maxi: cMaxi, Mand: cMand, Rite: cRite,
+                  Fore: cFore, Left: cLeft }
+
+const leftCol = ref(null)
 const fileInput = ref(null)
+const selectedSlot = ref('')
 
-// canvas refs
-const cSerio = ref(null)
-const cSmiling = ref(null)
-const cSide = ref(null)
-const cMaxi = ref(null)
-const cMand = ref(null)
-const cRite = ref(null)
-const cFore = ref(null)
-const cLeft = ref(null)
+/* reactive style root: variables CSS que actualizamos desde JS */
+const rootStyleReactive = reactive({
+  '--frame-w': '220px',  // ancho de los frames horizontales (px)
+  '--frame-h': '165px'   // alto de frames horizontales (px)
+})
+const rootStyle = rootStyleReactive  // ligado a :style en template
 
-const canvasMap = {
-  Serio: cSerio,
-  Smiling: cSmiling,
-  Side: cSide,
-  Maxi: cMaxi,
-  Mand: cMand,
-  Rite: cRite,
-  Fore: cFore,
-  Left: cLeft
-}
+/* computed para saber si hay alguna imagen */
+const hasAnyImage = computed(() => slots.some(s => !!images[s]))
 
-const hasAnyImage = computed(() => Object.keys(images).length > 0)
-
-function selectSlot(name) {
-  selectedSlot.value = (selectedSlot.value === name) ? '' : name
-  // set the select dropdown too
-}
-
-function clearSelected() {
-  selectedSlot.value = ''
-}
-
-// file load from top control
-function handleFileInput(e) {
-  const file = e.target.files && e.target.files[0]
+/* ---------- Carga de archivo desde panel derecho ---------- */
+function handleFile(event) {
+  const file = event.target.files && event.target.files[0]
   if (!file) return
   if (!selectedSlot.value) {
-    alert('Select a slot first (click a frame or choose from the dropdown).')
+    alert('Selecciona primero un slot en el panel antes de cargar la imagen.')
     fileInput.value.value = ''
     return
   }
 
   const reader = new FileReader()
-  reader.onload = async (ev) => {
-    images[selectedSlot.value] = ev.target.result
-    await nextTick()
-    drawSlot(selectedSlot.value)
-    fileInput.value.value = ''
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result
+    const img = new Image()
+    img.onload = async () => {
+      images[selectedSlot.value] = img
+      fileNames[selectedSlot.value] = file.name
+      await nextTick()
+      drawSlot(selectedSlot.value)
+      fileInput.value.value = ''
+    }
+    img.src = dataUrl
   }
   reader.readAsDataURL(file)
 }
 
-// central draw function (scale+center)
-function drawSlot(slotName) {
-  const canvasRef = canvasMap[slotName]
-  const canvas = canvasRef?.value
-  const dataUrl = images[slotName]
-  if (!canvas || !dataUrl) return
+/* ---------- Dibujo en canvas (centrado y escalado) ---------- */
+function drawSlot(slot) {
+  const cref = refsMap[slot]
+  const canvas = cref && cref.value
+  const img = images[slot]
+  if (!canvas || !img) return
 
   const ctx = canvas.getContext('2d')
-  const img = new Image()
-  img.onload = () => {
-    // set internal pixel size to match CSS size
-    canvas.width = Math.round(canvas.clientWidth)
-    canvas.height = Math.round(canvas.clientHeight)
+  // usamos tamaño real del canvas (ya ajustado por computeSizes)
+  const w = Math.max(1, Math.round(canvas.clientWidth))
+  const h = Math.max(1, Math.round(canvas.clientHeight))
+  canvas.width = w
+  canvas.height = h
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    // white background
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.clearRect(0,0,w,h)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0,0,w,h)
 
-    const scale = Math.min(canvas.width / img.width, canvas.height / img.height)
-    const w = Math.round(img.width * scale)
-    const h = Math.round(img.height * scale)
-    const x = Math.round((canvas.width - w) / 2)
-    const y = Math.round((canvas.height - h) / 2)
-
-    ctx.drawImage(img, x, y, w, h)
-  }
-  img.src = dataUrl
+  const scale = Math.min(w / img.width, h / img.height)
+  const dw = Math.round(img.width * scale)
+  const dh = Math.round(img.height * scale)
+  const dx = Math.round((w - dw) / 2)
+  const dy = Math.round((h - dh) / 2)
+  ctx.drawImage(img, dx, dy, dw, dh)
 }
 
-// redraw all (used on resize)
-function redrawAll() {
-  Object.keys(images).forEach(name => {
-    drawSlot(name)
-  })
-}
+/* redibujar todo */
+function redrawAll() { slots.forEach(s => { if (images[s]) drawSlot(s) }) }
 
-// Save all canvases that have content
+/* deselect, save */
+function clearSelected() { selectedSlot.value = '' }
+
 function saveAll() {
-  allSlots.forEach(name => {
-    const canvas = canvasMap[name].value
-    if (!canvas) return
-    // ensure at least something drawn - we accept blank white if no image
+  slots.forEach(s => {
+    const c = refsMap[s].value
+    if (!c) return
     const link = document.createElement('a')
-    link.download = `${name}.jpg`
-    link.href = canvas.toDataURL('image/jpeg', 0.92)
+    link.href = c.toDataURL('image/jpeg', 0.92)
+    link.download = `${s}.jpg`
     link.click()
   })
 }
 
-let resizeHandler = null
-onMounted(() => {
-  // draw existing images if any (rare)
-  nextTick(() => {
-    Object.keys(images).forEach(drawSlot)
-  })
-  resizeHandler = () => {
-    // small debounce
-    setTimeout(redrawAll, 80)
+/* ---------- Cálculo dinámico de tamaños para evitar overflow y mantener igualdad ---------- */
+let resizeTimer = null
+function computeSizes() {
+  // parámetros que deben coincidir con el CSS (anchura panel derecho)
+  const rightPanelWidth = 360 // px — si cambias CSS actualiza esto
+  const horizontalGap = 12 // gap entre frames en px (coincide con CSS)
+  const leftColumnPaddingLR = 20 // padding total horizontal dentro de left-column (aprox)
+  const verticalGapsTotal = 2 * 12 // gap entre filas (2 gaps)
+
+  // ancho disponible para la columna izquierda
+  const vw = window.innerWidth
+  let leftW = Math.max(200, vw - rightPanelWidth - 32) // reserva ancho para panel derecho + small margin
+
+  // width tentativa del frame (3 por fila)
+  let tentativeFrameW = (leftW - (2 * horizontalGap)) / 3
+
+  // alturas según aspect ratios:
+  // horizontales: ratio 4:3 (w:h = 4/3) => h = w * 3/4
+  // verticales: ratio 3:4 => h = w * 4/3
+  let hHorizontal = tentativeFrameW * 3 / 4
+  let hVertical = tentativeFrameW * 4 / 3
+
+  // altura total necesaria (sum filas + gaps)
+  let totalNeeded = hVertical + hHorizontal + hHorizontal + verticalGapsTotal + 24 // + small margins
+
+  // altura disponible del viewport
+  const vh = window.innerHeight
+
+  if (totalNeeded > vh) {
+    // escalar frameW para que quepa en viewport
+    const usable = Math.max(120, vh - verticalGapsTotal - 24) // espacio usable para las tres filas
+    // proporciones sumadas (vertical: 4/3, horizontals: 3/4 each)
+    const sumRatios = (4/3) + (3/4) + (3/4) // = 4/3 + 3/4*2
+    // queremos frameW * sumFactor = usable, donde sumFactor = verticalFactor + 2*horizontalFactor
+    const verticalFactor = 4/3
+    const horizontalFactor = 3/4
+    const denom = verticalFactor + 2*horizontalFactor
+    // frameW adjusted = usable / denom
+    const adjustedFrameW = Math.max(120, usable / denom)
+    tentativeFrameW = Math.min(tentativeFrameW, adjustedFrameW)
+    hHorizontal = tentativeFrameW * 3/4
+    hVertical = tentativeFrameW * 4/3
   }
-  window.addEventListener('resize', resizeHandler)
+
+  // límites por si queremos que no crezcan demasiado
+  const maxFrameW = 420
+  tentativeFrameW = Math.min(maxFrameW, Math.max(120, tentativeFrameW))
+  hHorizontal = tentativeFrameW * 3/4
+  hVertical = tentativeFrameW * 4/3
+
+  // fijamos variables CSS
+  rootStyleReactive['--frame-w'] = `${Math.round(tentativeFrameW)}px`
+  rootStyleReactive['--frame-h'] = `${Math.round(hHorizontal)}px`
+
+  // llamar redraw
+  nextTick(redrawAll)
+}
+
+function handleResize() {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    computeSizes()
+  }, 120)
+}
+
+/* ---------- ciclo de vida ---------- */
+onMounted(() => {
+  computeSizes()
+  window.addEventListener('resize', handleResize)
 })
+
 onBeforeUnmount(() => {
-  if (resizeHandler) window.removeEventListener('resize', resizeHandler)
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
 <style scoped>
-/* outer wrapper */
-.wrapper {
-  padding: 12px;
-  max-width: 1200px;
-  margin: 0 auto;
-  box-sizing: border-box;
-}
-
-/* controls line */
-.controls {
+/* ---------- layout general ---------- */
+.app-root {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 12px;
+  height: 100vh;
+  box-sizing: border-box;
+  background: #f6f7f8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
-/* main grid 3 columns by 3 rows */
-.grid {
+/* --- COLUMNA IZQUIERDA --- */
+.left-column {
+  flex: 1 1 0%;
+  /* usamos grid de 3 filas; cada fila se adaptará según el tamaño de los frames calculado vía JS */
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 420px 220px 220px; /* row heights: tall, medium, medium */
+  grid-template-rows: auto auto auto;
   gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  align-items: start;
+  justify-items: center; /* centra internamente el grid de cada fila */
+  overflow-y: auto; /* permitir scroll si por alguna razón no entra */
 }
 
-/* frame visual */
+/* Cada "row" se centra y usará columnas con tamaño igual a --frame-w */
+.row { width: 100%; box-sizing: border-box; display: flex; justify-content: center; }
+
+/* FILA 1: 3 columnas (cada columna usa --frame-w) */
+.row-1 {
+  display: grid;
+  grid-template-columns: repeat(3, var(--frame-w));
+  gap: 12px;
+  justify-content: center;
+}
+
+/* FILA 2: centrar exactamente dos frames (mismos anchos que fila 3) */
+.row-2 {
+  display: flex;
+  justify-content: center;
+}
+.row2-inner {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  /* el ancho de los items está controlado por --frame-w en cada .frame */
+}
+
+/* FILA 3: 3 columnas idénticas */
+.row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, var(--frame-w));
+  gap: 12px;
+  justify-content: center;
+}
+
+/* ----- FRAME (marco común) ----- */
 .frame {
-  position: relative;
-  border: 2px solid #ddd;
+  background: #fff;
+  border: 1.5px solid #e2e6ea;
   border-radius: 8px;
-  background: #fafafa;
+  box-shadow: 0 1px 4px rgba(20,20,20,0.03);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
-/* la fila 2 ocupa las 3 columnas y centra los 2 frames */
-.row2 {
-  grid-column: 1 / span 3;
-  grid-row: 2;
-  display: flex;
-  justify-content: center;
-  gap: 12px; /* espacio entre Maxi y Mand */
-}
-.row2 .frame {
-  flex: 0 0 30%; /* cada uno ocupa ~30% del ancho total */
-  max-width: 360px; /* opcional, para no crecer demasiado */
+/* Horizontal frames: ancho y alto definidos por CSS vars (calculadas por JS) */
+.frame-horizontal {
+  width: var(--frame-w);
+  height: var(--frame-h);
+  min-width: 120px;
+  min-height: 90px;
 }
 
+/* Vertical frames (fila 1) mantienen anchura var(--frame-w) y altura proporcional 4/3 */
+.frame-vertical {
+  width: var(--frame-w);
+  height: calc(var(--frame-w) * 1.3333333); /* 4/3 */
+  min-width: 120px;
+  min-height: 160px;
+}
 
-/* canvas fill the frame */
+/* placeholder (texto centrado dentro del marco) */
+.placeholder {
+  color: #6b7280;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* canvas ocupa todo el marco disponible */
 .frame canvas {
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: contain;
 }
 
-/* placeholder label when no image */
-.placeholder {
-  position: absolute;
-  font-weight: 600;
-  color: #666;
-  pointer-events: none;
+/* ---------- PANEL DERECHO ---------- */
+.right-panel {
+  width: 360px; /* fijo y debe coincidir con JS rightPanelWidth */
+  box-sizing: border-box;
+  border-left: 1px solid #e6e8ea;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
 }
 
-/* active selection highlight */
-.frame.active {
-  outline: 4px solid #007bff;
-  box-shadow: 0 6px 18px rgba(0,123,255,0.12);
+.panel-section {
+  padding: 14px;
+  border-bottom: 1px solid #f1f3f4;
 }
+.muted { color: #6b7280; margin-bottom: 8px; font-size: 13px; }
 
-/* assign grid areas by class */
-.serio { grid-column: 1; grid-row: 1; }
-.smiling { grid-column: 2; grid-row: 1; }
-.side { grid-column: 3; grid-row: 1; }
+.label-inline { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.label-inline select, .label-inline input[type="file"] { font-size:13px; }
 
-.maxi { grid-column: 1; grid-row: 2; }
-.mand { grid-column: 2; grid-row: 2; }
-/* right cell 2,3 is empty, so we keep .empty at grid-column:3,row:2 */
+.btn {
+  display:inline-block; padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer;
+}
+.btn.primary { background:#0b63d6; color:#fff; border-color:#0b63d6; }
 
-.rite { grid-column: 1; grid-row: 3; }
-.fore { grid-column: 2; grid-row: 3; }
-.left { grid-column: 3; grid-row: 3; }
+/* mapping table */
+.map-table { width:100%; border-collapse: collapse; font-size: 13px; }
+.map-table th, .map-table td { border:1px solid #e6e6e6; padding:6px 8px; text-align:left; }
+.col-vista { width:40%; font-weight:700; }
 
-/* responsive: on narrow screens stack rows */
-@media (max-width: 900px) {
-  .grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(8, 220px);
-  }
-  .serio, .smiling, .side, .maxi, .mand, .rite, .fore, .left {
-    grid-column: 1 !important;
+/* responsive: apilar en pantallas pequeñas */
+@media (max-width: 920px) {
+  .app-root { flex-direction: column; }
+  .right-panel { width: 100%; border-left: none; border-top: 1px solid #e6e8ea; }
+  .left-column { padding: 8px; }
+  :root { /* reducimos tamaño por defecto */
+    --frame-w: 140px;
+    --frame-h: 105px;
   }
 }
 </style>
