@@ -5,17 +5,17 @@
     <div class="left-column" ref="leftCol">
       <!-- ROW 1 -->
       <div class="row row-1">
-        <div class="frame frame-vertical" data-slot="Serio">
+        <div class="frame frame-vertical" data-slot="Serio" :class="{ selected: selectedSlot === 'Serio' }" @click="onFrameClick('Serio')">
           <canvas v-if="images.Serio" ref="cSerio"></canvas>
           <div v-else class="placeholder">Serio</div>
         </div>
 
-        <div class="frame frame-vertical" data-slot="Face">
+        <div class="frame frame-vertical" data-slot="Face" :class="{ selected: selectedSlot === 'Face' }" @click="onFrameClick('Face')">
           <canvas v-if="images.Face" ref="cFace"></canvas>
           <div v-else class="placeholder">Face</div>
         </div>
 
-        <div class="frame frame-vertical" data-slot="Side">
+        <div class="frame frame-vertical" data-slot="Side" :class="{ selected: selectedSlot === 'Side' }" @click="onFrameClick('Side')">
           <canvas v-if="images.Side" ref="cSide"></canvas>
           <div v-else class="placeholder">Side</div>
         </div>
@@ -24,12 +24,12 @@
       <!-- ROW 2 -->
       <div class="row row-2">
         <div class="row2-inner">
-          <div class="frame frame-horizontal" data-slot="Maxl">
+          <div class="frame frame-horizontal" data-slot="Maxl" :class="{ selected: selectedSlot === 'Maxl' }" @click="onFrameClick('Maxl')">
             <canvas v-if="images.Maxl" ref="cMaxl"></canvas>
             <div v-else class="placeholder">Maxl</div>
           </div>
 
-          <div class="frame frame-horizontal" data-slot="Mand">
+          <div class="frame frame-horizontal" data-slot="Mand" :class="{ selected: selectedSlot === 'Mand' }" @click="onFrameClick('Mand')">
             <canvas v-if="images.Mand" ref="cMand"></canvas>
             <div v-else class="placeholder">Mand</div>
           </div>
@@ -38,17 +38,17 @@
 
       <!-- ROW 3 -->
       <div class="row row-3">
-        <div class="frame frame-horizontal" data-slot="Rite">
+        <div class="frame frame-horizontal" data-slot="Rite" :class="{ selected: selectedSlot === 'Rite' }" @click="onFrameClick('Rite')">
           <canvas v-if="images.Rite" ref="cRite"></canvas>
           <div v-else class="placeholder">Rite</div>
         </div>
 
-        <div class="frame frame-horizontal" data-slot="Fore">
+        <div class="frame frame-horizontal" data-slot="Fore" :class="{ selected: selectedSlot === 'Fore' }" @click="onFrameClick('Fore')">
           <canvas v-if="images.Fore" ref="cFore"></canvas>
           <div v-else class="placeholder">Fore</div>
         </div>
 
-        <div class="frame frame-horizontal" data-slot="Left">
+        <div class="frame frame-horizontal" data-slot="Left" :class="{ selected: selectedSlot === 'Left' }" @click="onFrameClick('Left')">
           <canvas v-if="images.Left" ref="cLeft"></canvas>
           <div v-else class="placeholder">Left</div>
         </div>
@@ -61,6 +61,7 @@
       <section class="panel-section">
         <h3>1. Select folder</h3>
         <p class="muted">Choose the folder containing the images.</p>
+        <!-- user selects folder; input keeps using webkitdirectory (works in Chrome/Edge) -->
         <input
           type="file"
           webkitdirectory
@@ -68,7 +69,7 @@
           @change="handleFolderSelect"
         />
 
-        <div class="file-list">
+        <div class="file-list" v-if="sortedFiles.length">
           <table>
             <tbody>
               <tr
@@ -95,6 +96,7 @@
         <button @click="reloadWithThese" class="btn primary" :disabled="!selectedFile">
           Reload with these images
         </button>
+        <button @click="saveAll" class="btn" :disabled="!hasAnyImage">Save All (JPG)</button>
       </section>
 
       <!-- SECTION 3: Mapping -->
@@ -103,7 +105,7 @@
         <table class="map-table">
           <thead><tr><th>View</th><th>File</th></tr></thead>
           <tbody>
-            <tr v-for="s in slots" :key="s">
+            <tr v-for="s in slots" :key="s" :class="{ selected: selectedSlot === s }" @click="onFrameClick(s)">
               <td class="col-vista">{{ s }}</td>
               <td class="col-file">{{ fileNames[s] || '---' }}</td>
             </tr>
@@ -115,85 +117,21 @@
 </template>
 
 <script setup>
-/* 
-   ImageGrid.vue con:
-   - listado de archivos con thumbnails
-   - resaltado de archivo seleccionado
-   - carga inmediata de la imagen seleccionada
-   - botón "Reload with these images" que carga toda la colección
-   - NUEVO: al hacer clic en un archivo, se limpia todo antes de mostrar esa imagen
+/*
+  ImageGrid.vue (actualizado)
+  - Basado en el código que pegaste como referencia.
+  - Comentarios en español; UI en inglés.
+  - Añadido:
+     * filtro para listar solo imágenes al seleccionar carpeta
+     * selección sincronizada (archivo <-> slot)
+     * Save All (JPG) para descargar desde canvases
+     * revoke URLs previos para evitar fugas
 */
 
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 
-/* slots */
+/* --- Configuración de slots y mapeo de vistas --- */
 const slots = ['Serio','Face','Side','Maxl','Mand','Rite','Fore','Left']
-
-/* estados */
-const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
-const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
-
-const allFiles = ref([]) 
-const selectedFile = ref(null) 
-const selectedCollection = ref(null) 
-
-/* refs a canvases */
-const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
-      cMaxl = ref(null), cMand = ref(null), cRite = ref(null),
-      cFore = ref(null), cLeft = ref(null)
-const refsMap = { Serio: cSerio, Face: cFace, Side: cSide,
-                  Maxl: cMaxl, Mand: cMand, Rite: cRite,
-                  Fore: cFore, Left: cLeft }
-
-/* estilos */
-const rootStyleReactive = reactive({
-  '--frame-w': '220px',
-  '--frame-h': '165px'
-})
-const rootStyle = rootStyleReactive
-
-/* ordenar archivos alfabéticamente */
-const sortedFiles = computed(() => {
-  return [...allFiles.value].sort((a,b) => a.name.localeCompare(b.name))
-})
-
-/* ====== HANDLERS ====== */
-function handleFolderSelect(e) {
-  const files = Array.from(e.target.files)
-  allFiles.value = files.map(f => ({
-    file: f,
-    name: f.name,
-    url: URL.createObjectURL(f)
-  }))
-}
-
-function handleFileClick(file) {
-  selectedFile.value = file
-  parseAndLoadSingle(file)
-}
-
-function reloadWithThese() {
-  if (!selectedFile.value) return
-  const { patientId, collectionId } = parseFilename(selectedFile.value.name)
-  selectedCollection.value = { patientId, collectionId }
-  loadFullCollection()
-}
-
-function clearAll() {
-  slots.forEach(s => { images[s] = null; fileNames[s] = null })
-  selectedFile.value = null
-  selectedCollection.value = null
-}
-
-/* ====== PARSING DEL NOMBRE ====== */
-function parseFilename(fname) {
-  const base = fname.replace(/\.[^.]+$/, '')
-  const tokens = base.split('_')
-  let patientId = tokens[0]
-  let collectionId = tokens.length === 5 ? tokens[3] : null
-  let viewToken = tokens[tokens.length - 1].toLowerCase()
-  return { patientId, collectionId, viewToken }
-}
 
 const viewMap = {
   Serio: ['serio','serious'],
@@ -206,6 +144,101 @@ const viewMap = {
   Left: ['left','left buccal']
 }
 
+/* --- Estado reactivo --- */
+const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
+const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
+
+/* refs a canvases (mismos nombres que en template) */
+const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
+      cMaxl = ref(null), cMand = ref(null), cRite = ref(null),
+      cFore = ref(null), cLeft = ref(null)
+const refsMap = { Serio: cSerio, Face: cFace, Side: cSide,
+                  Maxl: cMaxl, Mand: cMand, Rite: cRite,
+                  Fore: cFore, Left: cLeft }
+
+/* demás estados */
+const allFiles = ref([])        // array de { file, name, url }
+const selectedFile = ref(null)  // objeto de allFiles seleccionado
+const selectedSlot = ref(null)  // slot seleccionado
+const selectedCollection = ref(null) // { patientId, collectionId } cuando se recarga colección
+
+/* CSS variables calculadas desde JS (mantengo como en base) */
+const rootStyleReactive = reactive({ '--frame-w': '220px', '--frame-h': '165px' })
+const rootStyle = rootStyleReactive
+
+/* storage de URLs creadas para revocarlas después */
+let previousObjectUrls = []
+
+/* computed: orden alfabético para mostrar */
+const sortedFiles = computed(() => {
+  return [...allFiles.value].sort((a,b) => a.name.localeCompare(b.name))
+})
+
+/* saber si hay al menos una imagen cargada en canvases */
+const hasAnyImage = computed(() => slots.some(s => !!images[s]))
+
+/* ------------------ Manejo de carpeta (filtrado) ------------------ */
+
+/* Filtrar solo imágenes y crear object URLs; revocar previas */
+function handleFolderSelect(e) {
+  // revocar las URL previas
+  previousObjectUrls.forEach(url => URL.revokeObjectURL(url))
+  previousObjectUrls = []
+  allFiles.value = []
+
+  const files = Array.from(e.target.files || [])
+  const allowedRE = /\.(jpe?g|png|gif|bmp|webp|tiff?|tif)$/i
+
+  files.forEach(f => {
+    if (!f || typeof f.name !== 'string') return
+    // ignorar ficheros ocultos o no-imagenes
+    if (f.name.startsWith('.')) return
+    if (!allowedRE.test(f.name)) return
+    const url = URL.createObjectURL(f)
+    previousObjectUrls.push(url)
+    allFiles.value.push({ file: f, name: f.name, url })
+  })
+
+  // ordenar
+  allFiles.value.sort((a,b) => a.name.localeCompare(b.name))
+  selectedFile.value = null
+  selectedCollection.value = null
+}
+
+/* ------------------ Selección y sincronización ------------------ */
+
+/* click en fila de listado -> cargar solo esa imagen y limpiar el resto */
+function handleFileClick(file) {
+  selectedFile.value = file
+  parseAndLoadSingle(file)
+}
+
+/* click en un frame o en la tabla -> seleccionar slot y, si existe, elegir el archivo correspondiente */
+function onFrameClick(slotName) {
+  selectedSlot.value = slotName
+  // buscar si ese slot tiene un fileName asociado y seleccionar la fila correspondiente
+  const fname = fileNames[slotName]
+  if (!fname) {
+    selectedFile.value = null
+    return
+  }
+  const found = allFiles.value.find(f => f.name === fname)
+  selectedFile.value = found || null
+}
+
+/* ------------------ Parsing de nombres e inferencia de slot ------------------ */
+
+/* Dado un filename -> extrae patientId, collectionId (si), viewToken */
+function parseFilename(fname) {
+  const base = fname.replace(/\.[^.]+$/, '')
+  const tokens = base.split('_')
+  const patientId = tokens[0] || null
+  const collectionId = tokens.length === 5 ? tokens[3] : null
+  const viewToken = tokens[tokens.length - 1] ? tokens[tokens.length - 1].toLowerCase() : ''
+  return { patientId, collectionId, viewToken }
+}
+
+/* mapear token de vista a slot */
 function mapView(viewToken) {
   for (const slot in viewMap) {
     if (viewMap[slot].includes(viewToken)) return slot
@@ -213,43 +246,67 @@ function mapView(viewToken) {
   return null
 }
 
-/* ====== CARGA DE IMÁGENES ====== */
-function parseAndLoadSingle(file) {
-  // limpiar todo antes de mostrar la imagen seleccionada
+/* ------------------ Carga de una sola imagen (al hacer click) ------------------ */
+
+/* cuando se hace click en un archivo del listado: limpiar todo y mostrar solo esa */
+function parseAndLoadSingle(fileObj) {
   clearAll()
-  selectedFile.value = file
-  const { viewToken } = parseFilename(file.name)
+  selectedFile.value = fileObj
+  const { viewToken } = parseFilename(fileObj.name)
   const slot = mapView(viewToken)
   if (!slot) return
-  loadImageIntoSlot(file, slot)
+  // cargar (fileObj tiene .url para usar en Image.src)
+  loadImageIntoSlot(fileObj, slot)
+  selectedSlot.value = slot
+}
+
+/* ------------------ Cargar colección completa (Reload) ------------------ */
+
+function reloadWithThese() {
+  if (!selectedFile.value) return
+  const { patientId, collectionId } = parseFilename(selectedFile.value.name)
+  selectedCollection.value = { patientId, collectionId }
+  loadFullCollection()
 }
 
 function loadFullCollection() {
   if (!selectedCollection.value) return
   const { patientId, collectionId } = selectedCollection.value
-  // limpiar primero
+  // limpiar antes de cargar
   clearAll()
-  allFiles.value.forEach(file => {
-    const { patientId: pid, collectionId: cid, viewToken } = parseFilename(file.name)
-    if (pid === patientId && cid === collectionId) {
-      const slot = mapView(viewToken)
-      if (slot) loadImageIntoSlot(file, slot)
+  // buscar en allFiles los archivos que pertenezcan a patientId y collectionId (o sin collection si no aplica)
+  allFiles.value.forEach(f => {
+    const { patientId: pid, collectionId: cid, viewToken } = parseFilename(f.name)
+    // coincide el paciente
+    if (pid !== patientId) return
+    // si collectionId existe, debe coincidir; si no existe, aceptar solo archivos sin collection (4 tokens)
+    if (collectionId) {
+      if (cid !== collectionId) return
+    } else {
+      // si collectionId no está en la referencia, aceptar solo archivos con 4 tokens
+      const tokens = f.name.replace(/\.[^.]+$/, '').split('_')
+      if (tokens.length !== 4) return
     }
+    const slot = mapView(viewToken)
+    if (slot) loadImageIntoSlot(f, slot)
   })
 }
 
-function loadImageIntoSlot(file, slot) {
+/* ------------------ Operaciones canvas y helper de carga ------------------ */
+
+function loadImageIntoSlot(fileObj, slot) {
+  // fileObj: { file, name, url } o similar
   const img = new Image()
   img.onload = async () => {
     images[slot] = img
-    fileNames[slot] = file.name
+    fileNames[slot] = fileObj.name
     await nextTick()
     drawSlot(slot)
   }
-  img.src = file.url
+  img.src = fileObj.url
 }
 
-/* ====== CANVAS DRAW ====== */
+/* Dibuja respetando centrado y escala proporcional */
 function drawSlot(slot) {
   const cref = refsMap[slot]
   const canvas = cref && cref.value
@@ -271,9 +328,39 @@ function drawSlot(slot) {
   ctx.drawImage(img, dx, dy, dw, dh)
 }
 
-function redrawAll() { slots.forEach(s => { if (images[s]) drawSlot(s) }) }
+function redrawAll() {
+  slots.forEach(s => {
+    if (images[s]) drawSlot(s)
+  })
+}
 
-/* ====== RESIZE LOGIC ====== */
+/* ------------------ Clear / Save ------------------ */
+
+function clearAll() {
+  slots.forEach(s => {
+    images[s] = null
+    fileNames[s] = null
+  })
+  selectedFile.value = null
+  selectedSlot.value = null
+  selectedCollection.value = null
+}
+
+/* Guardar todas las canvases como JPG (nombre por slot) */
+function saveAll() {
+  slots.forEach(s => {
+    const cref = refsMap[s]
+    const canvas = cref && cref.value
+    if (!canvas) return
+    const data = canvas.toDataURL('image/jpeg', 0.92)
+    const link = document.createElement('a')
+    link.href = data
+    link.download = `${s}.jpg`
+    link.click()
+  })
+}
+
+/* ------------------ Resize logic (igual que antes) ------------------ */
 let resizeTimer = null
 function computeSizes() {
   const rightPanelWidth = 360
@@ -306,36 +393,64 @@ function handleResize() {
   if (resizeTimer) clearTimeout(resizeTimer)
   resizeTimer = setTimeout(() => computeSizes(), 120)
 }
-onMounted(() => { computeSizes(); window.addEventListener('resize', handleResize) })
-onBeforeUnmount(() => window.removeEventListener('resize', handleResize))
+
+/* lifecycle */
+onMounted(() => {
+  computeSizes()
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  // revocar URLs creadas
+  previousObjectUrls.forEach(url => URL.revokeObjectURL(url))
+  previousObjectUrls = []
+})
 </script>
 
 <style scoped>
-/* igual que antes */
-.app-root { display:flex; height:100vh; background:#f6f7f8; font-family:sans-serif; }
+/* igual que antes pero con clases para selección */
+.app-root { display:flex; height:100vh; background:#f6f7f8; font-family:sans-serif; box-sizing:border-box; }
+
+/* LEFT */
 .left-column { flex:1; display:grid; grid-template-rows:auto auto auto; gap:12px; padding:12px; justify-items:center; overflow-y:auto; }
 .row { width:100%; display:flex; justify-content:center; }
 .row-1, .row-3 { display:grid; grid-template-columns:repeat(3,var(--frame-w)); gap:12px; justify-content:center; }
 .row2-inner { display:flex; gap:12px; justify-content:center; }
-.frame { background:#fff; border:1.5px solid #e2e6ea; border-radius:8px; box-shadow:0 1px 4px rgba(20,20,20,0.03); display:flex; align-items:center; justify-content:center; }
-.frame-horizontal { width:var(--frame-w); height:var(--frame-h); }
-.frame-vertical { width:var(--frame-w); height:calc(var(--frame-w)*1.3333); }
+
+.frame { background:#fff; border:1.5px solid #e2e6ea; border-radius:8px; box-shadow:0 1px 4px rgba(20,20,20,0.03); display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
+.frame-horizontal { width:var(--frame-w); height:var(--frame-h); min-width:120px; min-height:90px; }
+.frame-vertical { width:var(--frame-w); height:calc(var(--frame-w)*1.3333); min-width:120px; min-height:160px; }
 .placeholder { color:#6b7280; font-weight:700; }
-.frame canvas { width:100%; height:100%; }
-.right-panel { width:360px; border-left:1px solid #e6e8ea; background:#fff; display:flex; flex-direction:column; overflow:auto; }
+.frame canvas { width:100%; height:100%; display:block; }
+
+/* selección visual en frame */
+.frame.selected { border:2px solid #0b63d6; box-shadow:0 6px 18px rgba(11,99,214,0.12); }
+
+/* RIGHT */
+.right-panel { width:360px; border-left:1px solid #e6e8ea; background:#fff; display:flex; flex-direction:column; overflow:auto; box-sizing:border-box; }
 .panel-section { padding:14px; border-bottom:1px solid #f1f3f4; }
 .muted { color:#6b7280; font-size:13px; margin-bottom:8px; }
 .btn { padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; margin-right:6px; }
 .btn.primary { background:#0b63d6; color:#fff; border-color:#0b63d6; }
-.file-list { max-height:260px; overflow:auto; margin-top:8px; border:1px solid #e5e7eb; }
+
+/* file list */
+.file-list { max-height:260px; overflow:auto; margin-top:8px; border:1px solid #e5e7eb; background:#fff; }
 .file-list table { width:100%; border-collapse:collapse; font-size:13px; }
 .file-list tr { cursor:pointer; }
 .file-list tr.selected { background:#e6f0ff; }
 .thumb { width:45px; }
 .thumb img { width:40px; height:30px; object-fit:cover; }
 .fname { padding-left:6px; }
+
+/* mapping table */
 .map-table { width:100%; border-collapse:collapse; font-size:13px; }
 .map-table th, .map-table td { border:1px solid #e6e6e6; padding:6px 8px; }
 .col-vista { width:40%; font-weight:700; }
-@media (max-width:920px){ .app-root{flex-direction:column;} .right-panel{width:100%; border-left:none; border-top:1px solid #e6e8ea;} }
+
+/* responsive */
+@media (max-width:920px) {
+  .app-root { flex-direction:column; }
+  .right-panel { width:100%; border-left:none; border-top:1px solid #e6e8ea; }
+}
 </style>
