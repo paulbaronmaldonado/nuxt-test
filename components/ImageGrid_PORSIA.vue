@@ -121,7 +121,6 @@
    - resaltado de archivo seleccionado
    - carga inmediata de la imagen seleccionada
    - botón "Reload with these images" que carga toda la colección
-   - NUEVO: al hacer clic en un archivo, se limpia todo antes de mostrar esa imagen
 */
 
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
@@ -133,9 +132,9 @@ const slots = ['Serio','Face','Side','Maxl','Mand','Rite','Fore','Left']
 const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
 const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
 
-const allFiles = ref([]) 
-const selectedFile = ref(null) 
-const selectedCollection = ref(null) 
+const allFiles = ref([]) // todos los archivos leídos de la carpeta
+const selectedFile = ref(null) // archivo actualmente seleccionado
+const selectedCollection = ref(null) // info de la colección
 
 /* refs a canvases */
 const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
@@ -167,11 +166,13 @@ function handleFolderSelect(e) {
   }))
 }
 
+/* click en un archivo */
 function handleFileClick(file) {
   selectedFile.value = file
   parseAndLoadSingle(file)
 }
 
+/* botón Reload */
 function reloadWithThese() {
   if (!selectedFile.value) return
   const { patientId, collectionId } = parseFilename(selectedFile.value.name)
@@ -179,6 +180,7 @@ function reloadWithThese() {
   loadFullCollection()
 }
 
+/* clear */
 function clearAll() {
   slots.forEach(s => { images[s] = null; fileNames[s] = null })
   selectedFile.value = null
@@ -195,6 +197,7 @@ function parseFilename(fname) {
   return { patientId, collectionId, viewToken }
 }
 
+/* mapping de vistas */
 const viewMap = {
   Serio: ['serio','serious'],
   Face: ['face','smile'],
@@ -215,9 +218,6 @@ function mapView(viewToken) {
 
 /* ====== CARGA DE IMÁGENES ====== */
 function parseAndLoadSingle(file) {
-  // limpiar todo antes de mostrar la imagen seleccionada
-  clearAll()
-  selectedFile.value = file
   const { viewToken } = parseFilename(file.name)
   const slot = mapView(viewToken)
   if (!slot) return
@@ -227,8 +227,6 @@ function parseAndLoadSingle(file) {
 function loadFullCollection() {
   if (!selectedCollection.value) return
   const { patientId, collectionId } = selectedCollection.value
-  // limpiar primero
-  clearAll()
   allFiles.value.forEach(file => {
     const { patientId: pid, collectionId: cid, viewToken } = parseFilename(file.name)
     if (pid === patientId && cid === collectionId) {
@@ -311,22 +309,28 @@ onBeforeUnmount(() => window.removeEventListener('resize', handleResize))
 </script>
 
 <style scoped>
-/* igual que antes */
 .app-root { display:flex; height:100vh; background:#f6f7f8; font-family:sans-serif; }
+
+/* LEFT COLUMN */
 .left-column { flex:1; display:grid; grid-template-rows:auto auto auto; gap:12px; padding:12px; justify-items:center; overflow-y:auto; }
 .row { width:100%; display:flex; justify-content:center; }
 .row-1, .row-3 { display:grid; grid-template-columns:repeat(3,var(--frame-w)); gap:12px; justify-content:center; }
 .row2-inner { display:flex; gap:12px; justify-content:center; }
+
 .frame { background:#fff; border:1.5px solid #e2e6ea; border-radius:8px; box-shadow:0 1px 4px rgba(20,20,20,0.03); display:flex; align-items:center; justify-content:center; }
 .frame-horizontal { width:var(--frame-w); height:var(--frame-h); }
 .frame-vertical { width:var(--frame-w); height:calc(var(--frame-w)*1.3333); }
 .placeholder { color:#6b7280; font-weight:700; }
 .frame canvas { width:100%; height:100%; }
+
+/* RIGHT PANEL */
 .right-panel { width:360px; border-left:1px solid #e6e8ea; background:#fff; display:flex; flex-direction:column; overflow:auto; }
 .panel-section { padding:14px; border-bottom:1px solid #f1f3f4; }
 .muted { color:#6b7280; font-size:13px; margin-bottom:8px; }
 .btn { padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; margin-right:6px; }
 .btn.primary { background:#0b63d6; color:#fff; border-color:#0b63d6; }
+
+/* file list */
 .file-list { max-height:260px; overflow:auto; margin-top:8px; border:1px solid #e5e7eb; }
 .file-list table { width:100%; border-collapse:collapse; font-size:13px; }
 .file-list tr { cursor:pointer; }
@@ -334,8 +338,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', handleResize))
 .thumb { width:45px; }
 .thumb img { width:40px; height:30px; object-fit:cover; }
 .fname { padding-left:6px; }
+
+/* mapping table */
 .map-table { width:100%; border-collapse:collapse; font-size:13px; }
 .map-table th, .map-table td { border:1px solid #e6e6e6; padding:6px 8px; }
 .col-vista { width:40%; font-weight:700; }
+
 @media (max-width:920px){ .app-root{flex-direction:column;} .right-panel{width:100%; border-left:none; border-top:1px solid #e6e8ea;} }
 </style>
