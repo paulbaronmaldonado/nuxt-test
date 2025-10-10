@@ -90,7 +90,6 @@
           <button class="btn" @click="clearAll">Clear all</button>
           <button class="btn primary" :disabled="!selectedFile" @click="reloadWithThese">Load images</button>
           <button class="btn" :disabled="!canUndo" @click="undoTransform">Undo</button>
-          <button class="btn" :disabled="!canRedo" @click="redoTransform">Redo</button>
         </div>
       </section>
 
@@ -121,15 +120,15 @@
           </div>
 
           <div class="row-btns icon-row" style="margin-top:8px;">
-            <button class="btn small icon-btn" @click="applyTransform('zoomIn')" :disabled="!canTransform" title="Zoom In">＋</button>
-            <button class="btn small icon-btn" @click="applyTransform('zoomOut')" :disabled="!canTransform" title="Zoom Out">－</button>
+            <button class="btn small icon-btn" @click="applyTransform('zoomIn')" :disabled="!canTransform">＋</button>
+            <button class="btn small icon-btn" @click="applyTransform('zoomOut')" :disabled="!canTransform">－</button>
             <div class="nudge-inline">
-              <button class="btn tiny icon-btn" @click="nudgeTransform(0,-10)" :disabled="!canTransform" title="Nudge Up">▲</button>
+              <button class="btn tiny icon-btn" @click="nudgeTransform(0,-10)" :disabled="!canTransform">▲</button>
               <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
-                <button class="btn tiny icon-btn" @click="nudgeTransform(-10,0)" :disabled="!canTransform" title="Nudge Left">◀</button>
-                <button class="btn tiny icon-btn" @click="nudgeTransform(10,0)" :disabled="!canTransform" title="Nudge Right">▶</button>
+                <button class="btn tiny icon-btn" @click="nudgeTransform(-10,0)" :disabled="!canTransform">◀</button>
+                <button class="btn tiny icon-btn" @click="nudgeTransform(10,0)" :disabled="!canTransform">▶</button>
               </div>
-              <button class="btn tiny icon-btn" @click="nudgeTransform(0,10)" :disabled="!canTransform" title="Nudge Down" style="margin-top:6px">▼</button>
+              <button class="btn tiny icon-btn" @click="nudgeTransform(0,10)" :disabled="!canTransform" style="margin-top:6px">▼</button>
             </div>
           </div>
         </div>
@@ -146,6 +145,7 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 
+/* ---------- Config ---------- */
 const slots = ['Serio','Face','Side','Maxl','Mand','Rite','Fore','Left']
 
 const viewMap = {
@@ -159,59 +159,48 @@ const viewMap = {
   Left: ['left','left buccal']
 }
 
+/* ---------- Estado ---------- */
 const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
 const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
 const transforms = reactive(Object.fromEntries(slots.map(s => [s, { rotate:0, flipH:false, flipV:false, zoom:1, offsetX:0, offsetY:0 }])))
 
+/* Undo stacks */
 const undoStacks = reactive(Object.fromEntries(slots.map(s => [s, []])))
-const redoStacks = reactive(Object.fromEntries(slots.map(s => [s, []])))
-const UNDO_LIMIT = 20
+const UNDO_LIMIT = 10
 
 function pushUndo(slot) {
   if (!slot) return
   const t = JSON.parse(JSON.stringify(transforms[slot]))
   undoStacks[slot].push(t)
   if (undoStacks[slot].length > UNDO_LIMIT) undoStacks[slot].shift()
-  redoStacks[slot] = [] // al hacer un cambio, limpiamos redo
 }
-
 function undoTransform() {
   const slot = selectedSlot.value
   if (!slot || undoStacks[slot].length === 0) return
-  const current = JSON.parse(JSON.stringify(transforms[slot]))
   const last = undoStacks[slot].pop()
-  redoStacks[slot].push(current)
   Object.assign(transforms[slot], last)
   nextTick(() => drawSlot(slot))
 }
-
-function redoTransform() {
-  const slot = selectedSlot.value
-  if (!slot || redoStacks[slot].length === 0) return
-  const current = JSON.parse(JSON.stringify(transforms[slot]))
-  const redoState = redoStacks[slot].pop()
-  undoStacks[slot].push(current)
-  Object.assign(transforms[slot], redoState)
-  nextTick(() => drawSlot(slot))
-}
-
 const canUndo = computed(() => selectedSlot.value && undoStacks[selectedSlot.value]?.length > 0)
-const canRedo = computed(() => selectedSlot.value && redoStacks[selectedSlot.value]?.length > 0)
 
+/* refs */
 const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
       cMaxl = ref(null), cMand = ref(null), cRite = ref(null),
       cFore = ref(null), cLeft = ref(null)
 const refsMap = { Serio: cSerio, Face: cFace, Side: cSide, Maxl: cMaxl, Mand: cMand, Rite: cRite, Fore: cFore, Left: cLeft }
 
+/* archivos */
 const allFiles = ref([])
 const selectedFile = ref(null)
 const selectedSlot = ref(null)
 const selectedCollection = ref(null)
 
+/* estilo */
 const rootStyleReactive = reactive({ '--frame-w': '220px', '--frame-h': '165px' })
 const rootStyle = rootStyleReactive
 let previousObjectUrls = []
 
+/* computed */
 const sortedFiles = computed(() => [...allFiles.value].sort((a,b)=>a.name.localeCompare(b.name)))
 const hasAnyImage = computed(() => slots.some(s => !!images[s]))
 const canTransform = computed(() => !!(selectedSlot.value && images[selectedSlot.value]))
@@ -228,265 +217,208 @@ function applyTransform(action) {
     case 'flipV': t.flipV = !t.flipV; break
     case 'zoomIn': t.zoom = Math.min(3, +(t.zoom + 0.1).toFixed(2)); break
     case 'zoomOut': t.zoom = Math.max(0.5, +(t.zoom - 0.1).toFixed(2)); break
-    case 'reset':
-      t.rotate = 0; t.flipH = false; t.flipV = false; t.zoom = 1; t.offsetX = 0; t.offsetY = 0
-      break
+    case 'reset': Object.assign(t,{rotate:0,flipH:false,flipV:false,zoom:1,offsetX:0,offsetY:0}); break
   }
   nextTick(()=>drawSlot(slot))
 }
 
-function nudgeTransform(dx, dy) {
-  const slot = selectedSlot.value
-  if (!slot) return
+function nudgeTransform(dx,dy){
+  const slot=selectedSlot.value
+  if(!slot)return
   pushUndo(slot)
-
-  const t = transforms[slot]
-  const angle = -(t.rotate || 0) * Math.PI / 180 // ángulo inverso para mantener referencia del frame
-
-  // transformar vector (dx, dy) para que respete la orientación del frame
-  const cosA = Math.cos(angle)
-  const sinA = Math.sin(angle)
-  const frameDx = dx * cosA - dy * sinA
-  const frameDy = dx * sinA + dy * cosA
-
-  t.offsetX += frameDx
-  t.offsetY += frameDy
-
-  nextTick(() => drawSlot(slot))
+  transforms[slot].offsetX+=dx
+  transforms[slot].offsetY+=dy
+  nextTick(()=>drawSlot(slot))
 }
 
-
-
-
-/* ------------------ Manejo de carpeta (filtrado) ------------------ */
+/* carpeta */
 function handleFolderSelect(e) {
   previousObjectUrls.forEach(url => URL.revokeObjectURL(url))
   previousObjectUrls = []
   allFiles.value = []
-
-  const files = Array.from(e.target.files || [])
+  const files = Array.from(e.target.files||[])
   const allowedRE = /\.(jpe?g|png|gif|bmp|webp|tiff?|tif)$/i
-
-  files.forEach(f => {
-    if (!f || typeof f.name !== 'string') return
-    if (f.name.startsWith('.')) return
-    if (!allowedRE.test(f.name)) return
-    const url = URL.createObjectURL(f)
+  files.forEach(f=>{
+    if(!f||!f.name)return
+    if(f.name.startsWith('.'))return
+    if(!allowedRE.test(f.name))return
+    const url=URL.createObjectURL(f)
     previousObjectUrls.push(url)
-    allFiles.value.push({ file: f, name: f.name, url })
+    allFiles.value.push({file:f,name:f.name,url})
   })
-
-  allFiles.value.sort((a,b) => a.name.localeCompare(b.name))
-  selectedFile.value = null
-  selectedCollection.value = null
+  allFiles.value.sort((a,b)=>a.name.localeCompare(b.name))
+  selectedFile.value=null
+  selectedCollection.value=null
 }
 
-/* ------------------ Selección y sincronización ------------------ */
-function handleFileClick(file) {
-  selectedFile.value = file
+function handleFileClick(file){
+  selectedFile.value=file
   parseAndLoadSingle(file)
 }
 
-function onFrameClick(slotName) {
-  selectedSlot.value = slotName
-  const fname = fileNames[slotName]
-  if (!fname) { selectedFile.value = null; return }
-  const found = allFiles.value.find(f => f.name === fname)
-  selectedFile.value = found || null
+function onFrameClick(slotName){
+  selectedSlot.value=slotName
+  const fname=fileNames[slotName]
+  if(!fname){selectedFile.value=null;return}
+  const found=allFiles.value.find(f=>f.name===fname)
+  selectedFile.value=found||null
 }
 
-/* ------------------ Parsing e inference ------------------ */
-function parseFilename(fname) {
-  const base = fname.replace(/\.[^.]+$/, '')
-  const tokens = base.split('_')
-  const patientId = tokens[0] || null
-  const collectionId = tokens.length === 5 ? tokens[3] : null
-  const viewToken = tokens[tokens.length - 1] ? tokens[tokens.length - 1].toLowerCase() : ''
-  return { patientId, collectionId, viewToken }
+/* filename parsing */
+function parseFilename(fname){
+  const base=fname.replace(/\.[^.]+$/,'')
+  const tokens=base.split('_')
+  const patientId=tokens[0]||null
+  const collectionId=tokens.length===5?tokens[3]:null
+  const viewToken=tokens[tokens.length-1]?tokens[tokens.length-1].toLowerCase():''
+  return {patientId,collectionId,viewToken}
 }
-
-function mapView(viewToken) {
-  for (const slot in viewMap) {
-    if (viewMap[slot].includes(viewToken)) return slot
+function mapView(viewToken){
+  for(const slot in viewMap){
+    if(viewMap[slot].includes(viewToken))return slot
   }
   return null
 }
 
-/* ------------------ CARGA DE IMÁGENES ------------------ */
-function parseAndLoadSingle(fileObj) {
+/* carga */
+function parseAndLoadSingle(fileObj){
   clearAll()
-  selectedFile.value = fileObj
-  const { viewToken } = parseFilename(fileObj.name)
-  const slot = mapView(viewToken)
-  if (!slot) return
-  loadImageIntoSlot(fileObj, slot)
-  selectedSlot.value = slot
+  selectedFile.value=fileObj
+  const {viewToken}=parseFilename(fileObj.name)
+  const slot=mapView(viewToken)
+  if(!slot)return
+  loadImageIntoSlot(fileObj,slot)
+  selectedSlot.value=slot
 }
-
-/* reloadWithThese: soporta nombres tokenizados y secuenciales (DS0001...) */
-function reloadWithThese() {
-  if (!selectedFile.value) return
-  const fname = selectedFile.value.name
-  const isTokenized = fname.includes('_')
-
-  if (isTokenized) {
-    const { patientId, collectionId } = parseFilename(fname)
-    selectedCollection.value = { patientId, collectionId }
+function reloadWithThese(){
+  if(!selectedFile.value)return
+  const fname=selectedFile.value.name
+  const isTokenized=fname.includes('_')
+  if(isTokenized){
+    const {patientId,collectionId}=parseFilename(fname)
+    selectedCollection.value={patientId,collectionId}
     loadFullCollection()
-  } else {
-    // flujo secuencia: asumimos que selectedFile es la primera imagen de la secuencia
+  }else{
     clearAll()
-    const sorted = sortedFiles.value
-    const startIdx = sorted.findIndex(f => f.name === fname)
-    if (startIdx < 0) return
-    const sequenceMap = ['Fore', 'Rite', 'Left', 'Mand', 'Maxl', 'Serio', 'Face', 'Side']
-    for (let i = 0; i < sequenceMap.length; i++) {
-      const f = sorted[startIdx + i]
-      if (!f) break
-      const slot = sequenceMap[i]
-      if (slot) loadImageIntoSlot(f, slot)
+    const sorted=sortedFiles.value
+    const startIdx=sorted.findIndex(f=>f.name===fname)
+    if(startIdx<0)return
+    const sequenceMap=['Fore','Rite','Left','Mand','Maxl','Serio','Face','Side']
+    for(let i=0;i<sequenceMap.length;i++){
+      const f=sorted[startIdx+i]
+      if(!f)break
+      const slot=sequenceMap[i]
+      if(slot)loadImageIntoSlot(f,slot)
     }
   }
 }
-
-function loadFullCollection() {
-  if (!selectedCollection.value) return
-  const { patientId, collectionId } = selectedCollection.value
+function loadFullCollection(){
+  if(!selectedCollection.value)return
+  const {patientId,collectionId}=selectedCollection.value
   clearAll()
-  allFiles.value.forEach(f => {
-    const { patientId: pid, collectionId: cid, viewToken } = parseFilename(f.name)
-    if (pid !== patientId) return
-    if (collectionId) {
-      if (cid !== collectionId) return
-    } else {
-      const tokens = f.name.replace(/\.[^.]+$/, '').split('_')
-      if (tokens.length !== 4) return
+  allFiles.value.forEach(f=>{
+    const {patientId:pid,collectionId:cid,viewToken}=parseFilename(f.name)
+    if(pid!==patientId)return
+    if(collectionId){
+      if(cid!==collectionId)return
+    }else{
+      const tokens=f.name.replace(/\.[^.]+$/,'').split('_')
+      if(tokens.length!==4)return
     }
-    const slot = mapView(viewToken)
-    if (slot) loadImageIntoSlot(f, slot)
+    const slot=mapView(viewToken)
+    if(slot)loadImageIntoSlot(f,slot)
   })
 }
-
-function loadImageIntoSlot(fileObj, slot) {
-  const img = new Image()
-  img.onload = async () => {
-    images[slot] = img
-    fileNames[slot] = fileObj.name
-    transforms[slot].rotate = 0
-    transforms[slot].flipH = false
-    transforms[slot].flipV = false
-    transforms[slot].zoom = 1
-    transforms[slot].offsetX = 0
-    transforms[slot].offsetY = 0
+function loadImageIntoSlot(fileObj,slot){
+  const img=new Image()
+  img.onload=async()=>{
+    images[slot]=img
+    fileNames[slot]=fileObj.name
+    Object.assign(transforms[slot],{rotate:0,flipH:false,flipV:false,zoom:1,offsetX:0,offsetY:0})
+    undoStacks[slot]=[]
     await nextTick()
     drawSlot(slot)
   }
-  img.src = fileObj.url
+  img.src=fileObj.url
 }
 
-/* ------------------ DIBUJO EN CANVAS (aplica transforms) ------------------ */
-function drawSlot(slot) {
-  const cref = refsMap[slot]
-  const canvas = cref && cref.value
-  const img = images[slot]
-  if (!canvas || !img) return
-
-  const ctx = canvas.getContext('2d')
-  const w = Math.max(1, Math.round(canvas.clientWidth))
-  const h = Math.max(1, Math.round(canvas.clientHeight))
-  canvas.width = w
-  canvas.height = h
-
+/* dibujo */
+function drawSlot(slot){
+  const cref=refsMap[slot]
+  const canvas=cref&&cref.value
+  const img=images[slot]
+  if(!canvas||!img)return
+  const ctx=canvas.getContext('2d')
+  const w=Math.round(canvas.clientWidth)
+  const h=Math.round(canvas.clientHeight)
+  canvas.width=w;canvas.height=h
   ctx.clearRect(0,0,w,h)
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0,0,w,h)
-
-  const t = transforms[slot] || { rotate:0, flipH:false, flipV:false, zoom:1, offsetX:0, offsetY:0 }
-  const baseScale = Math.min(w / img.width, h / img.height) || 1
-  const totalScale = baseScale * (t.zoom || 1)
-
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h)
+  const t=transforms[slot]
+  const baseScale=Math.min(w/img.width,h/img.height)||1
+  const totalScale=baseScale*(t.zoom||1)
   ctx.save()
-  ctx.translate(w/2, h/2)
-  ctx.rotate((t.rotate || 0) * Math.PI / 180)
-  const sx = (t.flipH ? -1 : 1) * totalScale
-  const sy = (t.flipV ? -1 : 1) * totalScale
-  ctx.scale(sx, sy)
-  const offsetXAdj = (t.offsetX || 0) / (totalScale || 1)
-  const offsetYAdj = (t.offsetY || 0) / (totalScale || 1)
-  ctx.drawImage(img, -img.width/2 + offsetXAdj, -img.height/2 + offsetYAdj, img.width, img.height)
+  ctx.translate(w/2,h/2)
+  ctx.rotate((t.rotate||0)*Math.PI/180)
+  ctx.scale((t.flipH?-1:1)*totalScale,(t.flipV?-1:1)*totalScale)
+  const offsetXAdj=(t.offsetX||0)/(totalScale||1)
+  const offsetYAdj=(t.offsetY||0)/(totalScale||1)
+  ctx.drawImage(img,-img.width/2+offsetXAdj,-img.height/2+offsetYAdj,img.width,img.height)
   ctx.restore()
 }
+function redrawAll(){slots.forEach(s=>{if(images[s])drawSlot(s)})}
 
-/* redibujar todas */
-function redrawAll() { slots.forEach(s => { if (images[s]) drawSlot(s) }) }
-
-/* ------------------ Clear / Save ------------------ */
-function clearAll() {
-  slots.forEach(s => {
-    images[s] = null
-    fileNames[s] = null
-    transforms[s].rotate = 0
-    transforms[s].flipH = false
-    transforms[s].flipV = false
-    transforms[s].zoom = 1
-    transforms[s].offsetX = 0
-    transforms[s].offsetY = 0
+/* clear & save */
+function clearAll(){
+  slots.forEach(s=>{
+    images[s]=null
+    fileNames[s]=null
+    Object.assign(transforms[s],{rotate:0,flipH:false,flipV:false,zoom:1,offsetX:0,offsetY:0})
+    undoStacks[s]=[]
   })
-  selectedFile.value = null
-  selectedSlot.value = null
-  selectedCollection.value = null
+  selectedFile.value=null
+  selectedSlot.value=null
+  selectedCollection.value=null
 }
 
 
-
-/* ---------- SAVE ALL corregido para respetar offsets y tamaño original ---------- */
 function saveAll() {
   slots.forEach(s => {
     const img = images[s]
     if (!img) return
 
-    const t = transforms[s] || { rotate:0, flipH:false, flipV:false, zoom:1, offsetX:0, offsetY:0 }
+    const t = transforms[s]
     const origW = img.width
     const origH = img.height
 
-    // recuperar tamaño del canvas de la vista (frame) para calcular baseScale
-    const frameCanvas = refsMap[s] && refsMap[s].value
-    const fw = frameCanvas ? Math.max(1, Math.round(frameCanvas.clientWidth)) : origW
-    const fh = frameCanvas ? Math.max(1, Math.round(frameCanvas.clientHeight)) : origH
-
-    // baseScale = escala usada para ajustar la imagen al frame
-    const baseScale = Math.min(fw / origW, fh / origH) || 1
-    const totalScale = baseScale * (t.zoom || 1) || 1
-
-    // offset en unidades de imagen (coincide con offsetAdj usado en drawSlot)
-    const offsetXAdj = (t.offsetX || 0) / totalScale
-    const offsetYAdj = (t.offsetY || 0) / totalScale
-
-    // canvas temporal con tamaño original
+    // Canvas temporal a tamaño original
     const tmpCanvas = document.createElement('canvas')
     tmpCanvas.width = origW
     tmpCanvas.height = origH
     const ctx = tmpCanvas.getContext('2d')
 
-    // fondo blanco para JPEG
+    // Fondo blanco (importante para JPG)
     ctx.fillStyle = '#fff'
     ctx.fillRect(0, 0, origW, origH)
 
-    // aplicar transformaciones: translate centro, rotate, scale por zoom (no baseScale)
+    // Aplicar transformaciones como en drawSlot()
     ctx.save()
     ctx.translate(origW / 2, origH / 2)
     ctx.rotate((t.rotate || 0) * Math.PI / 180)
-    const scaleX = (t.flipH ? -1 : 1) * (t.zoom || 1)
-    const scaleY = (t.flipV ? -1 : 1) * (t.zoom || 1)
-    ctx.scale(scaleX, scaleY)
+    const scaleX = t.flipH ? -1 : 1
+    const scaleY = t.flipV ? -1 : 1
+    ctx.scale(scaleX * (t.zoom || 1), scaleY * (t.zoom || 1))
 
-    // dibujar imagen en su tamaño original pero desplazada según offsetAdj
+    // Los offsets en pantalla se aplican en coordenadas transformadas,
+    // así que aquí los usamos directamente en la escala original
+    const offsetXAdj = t.offsetX || 0
+    const offsetYAdj = t.offsetY || 0
+
     ctx.drawImage(img, -origW / 2 + offsetXAdj, -origH / 2 + offsetYAdj, origW, origH)
     ctx.restore()
 
-    // exportar como blob (JPEG)
+    // Guardar como JPEG de alta calidad
     tmpCanvas.toBlob(blob => {
-      if (!blob) return
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
       a.download = fileNames[s] || `${s}.jpg`

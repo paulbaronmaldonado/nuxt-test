@@ -1,7 +1,7 @@
 <template>
   <!-- root -->
   <div class="app-root" :style="rootStyle">
-    <!-- LEFT: grid with frames -->
+    <!-- LEFT: grid with frames (sin cambios a tu versión buena 01) -->
     <div class="left-column" ref="leftCol">
       <!-- ROW 1 -->
       <div class="row row-1">
@@ -57,25 +57,29 @@
 
     <!-- RIGHT: control panel -->
     <aside class="right-panel">
-      <!-- toolbar -->
-      <div class="toolbar">
-        <h3 class="toolbar-title">Controls</h3>
-        <button class="quick-save" @click="saveAll" title="Quick save">💾</button>
-      </div>
-
-      <!-- 1. Select folder -->
+      <!-- SECTION 1: File listing -->
       <section class="panel-section">
-        <h4>1. Select folder</h4>
+        <h3>1. Select folder</h3>
         <p class="muted">Choose the folder containing the images.</p>
-        <input type="file" webkitdirectory multiple @change="handleFolderSelect" />
+        <input
+          type="file"
+          webkitdirectory
+          multiple
+          @change="handleFolderSelect"
+        />
 
         <div class="file-list" v-if="sortedFiles.length">
           <table>
             <tbody>
-              <tr v-for="(file, idx) in sortedFiles" :key="idx"
-                  :class="{ selected: selectedFile && selectedFile.name === file.name }"
-                  @click="handleFileClick(file)">
-                <td class="thumb"><img :src="file.url" alt="thumb" /></td>
+              <tr
+                v-for="(file, idx) in sortedFiles"
+                :key="idx"
+                :class="{ selected: selectedFile && selectedFile.name === file.name }"
+                @click="handleFileClick(file)"
+              >
+                <td class="thumb">
+                  <img :src="file.url" alt="thumb" />
+                </td>
                 <td class="fname">{{ file.name }}</td>
               </tr>
             </tbody>
@@ -83,20 +87,55 @@
         </div>
       </section>
 
-      <!-- 2. Actions -->
+      <!-- SECTION 2: Controls -->
       <section class="panel-section">
-        <h4>2. Actions</h4>
-        <div class="actions-row">
-          <button class="btn" @click="clearAll">Clear all</button>
-          <button class="btn primary" :disabled="!selectedFile" @click="reloadWithThese">Load images</button>
-          <button class="btn" :disabled="!canUndo" @click="undoTransform">Undo</button>
-          <button class="btn" :disabled="!canRedo" @click="redoTransform">Redo</button>
+        <h3>2. Controls</h3>
+        <p class="muted">Basic test controls.</p>
+        <button @click="clearAll" class="btn">Clear all</button>
+        <button @click="reloadWithThese" class="btn primary" :disabled="!selectedFile">
+          Reload with these images
+        </button>
+        <button @click="saveAll" class="btn" :disabled="!hasAnyImage">Save All (JPG)</button>
+      </section>
+
+      <!-- SECTION 3: Transformations -->
+      <section class="panel-section">
+        <h3>3. Transformations</h3>
+        <p class="muted">Apply edits to the selected slot (rotate, flip, zoom, move).</p>
+
+        <div class="transform-grid">
+          <div class="row-btns">
+            <button class="btn small" @click="applyTransform('rotateLeft')" :disabled="!canTransform">⟲ Rotate Left</button>
+            <button class="btn small" @click="applyTransform('rotateRight')" :disabled="!canTransform">Rotate Right ⟳</button>
+            <button class="btn small" @click="applyTransform('flipH')" :disabled="!canTransform">Flip H ↔</button>
+            <button class="btn small" @click="applyTransform('flipV')" :disabled="!canTransform">Flip V ↕</button>
+          </div>
+
+          <div class="row-btns" style="margin-top:8px;">
+            <button class="btn small" @click="applyTransform('zoomIn')" :disabled="!canTransform">Zoom +</button>
+            <button class="btn small" @click="applyTransform('zoomOut')" :disabled="!canTransform">Zoom −</button>
+            <button class="btn small" @click="applyTransform('reset')" :disabled="!canTransform">Reset</button>
+          </div>
+
+          <div class="nudge-block" style="margin-top:8px;">
+            <div class="nudge-row">
+              <button class="btn tiny" @click="nudgeTransform(0,-10)" :disabled="!canTransform">▲</button>
+            </div>
+            <div class="nudge-row" style="display:flex; gap:6px; justify-content:center; margin-top:6px;">
+              <button class="btn tiny" @click="nudgeTransform(-10,0)" :disabled="!canTransform">◀</button>
+              <button class="btn tiny" @click="nudgeTransform(10,0)" :disabled="!canTransform">▶</button>
+            </div>
+            <div class="nudge-row" style="display:flex; gap:6px; justify-content:center; margin-top:6px;">
+              <button class="btn tiny" @click="nudgeTransform(0,10)" :disabled="!canTransform">▼</button>
+            </div>
+            <div class="nudge-hint muted" style="margin-top:6px; font-size:12px;">Use nudges to reposition image when zoomed.</div>
+          </div>
         </div>
       </section>
 
-      <!-- 3. View ↔ File -->
-      <section class="panel-section">
-        <h4>3. View ↔ File</h4>
+      <!-- SECTION 4: Mapping -->
+      <section class="panel-section grow">
+        <h3>4. View ↔ File</h3>
         <table class="map-table">
           <thead><tr><th>View</th><th>File</th></tr></thead>
           <tbody>
@@ -107,38 +146,6 @@
           </tbody>
         </table>
       </section>
-
-      <!-- 4. Transformations -->
-      <section class="panel-section">
-        <h4>4. Transformations</h4>
-        <div class="transform-grid">
-          <div class="row-btns icon-row">
-            <button class="btn small icon-btn" @click="applyTransform('rotateLeft')" :disabled="!canTransform" title="Rotate Left">⟲</button>
-            <button class="btn small icon-btn" @click="applyTransform('rotateRight')" :disabled="!canTransform" title="Rotate Right">⟳</button>
-            <button class="btn small icon-btn" @click="applyTransform('flipH')" :disabled="!canTransform" title="Flip Horizontal">⇋</button>
-            <button class="btn small icon-btn" @click="applyTransform('flipV')" :disabled="!canTransform" title="Flip Vertical">⇵</button>
-            <button class="btn small icon-btn" @click="applyTransform('reset')" :disabled="!canTransform" title="Reset">⟳0</button>
-          </div>
-
-          <div class="row-btns icon-row" style="margin-top:8px;">
-            <button class="btn small icon-btn" @click="applyTransform('zoomIn')" :disabled="!canTransform" title="Zoom In">＋</button>
-            <button class="btn small icon-btn" @click="applyTransform('zoomOut')" :disabled="!canTransform" title="Zoom Out">－</button>
-            <div class="nudge-inline">
-              <button class="btn tiny icon-btn" @click="nudgeTransform(0,-10)" :disabled="!canTransform" title="Nudge Up">▲</button>
-              <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
-                <button class="btn tiny icon-btn" @click="nudgeTransform(-10,0)" :disabled="!canTransform" title="Nudge Left">◀</button>
-                <button class="btn tiny icon-btn" @click="nudgeTransform(10,0)" :disabled="!canTransform" title="Nudge Right">▶</button>
-              </div>
-              <button class="btn tiny icon-btn" @click="nudgeTransform(0,10)" :disabled="!canTransform" title="Nudge Down" style="margin-top:6px">▼</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Sticky Save -->
-      <div class="sticky-save">
-        <button class="btn primary full" @click="saveAll" :disabled="!hasAnyImage">Save All</button>
-      </div>
     </aside>
   </div>
 </template>
@@ -146,6 +153,7 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 
+/* ---------- Config ---------- */
 const slots = ['Serio','Face','Side','Maxl','Mand','Rite','Fore','Left']
 
 const viewMap = {
@@ -159,67 +167,52 @@ const viewMap = {
   Left: ['left','left buccal']
 }
 
+/* ---------- Estado ---------- */
 const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
 const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
-const transforms = reactive(Object.fromEntries(slots.map(s => [s, { rotate:0, flipH:false, flipV:false, zoom:1, offsetX:0, offsetY:0 }])))
 
-const undoStacks = reactive(Object.fromEntries(slots.map(s => [s, []])))
-const redoStacks = reactive(Object.fromEntries(slots.map(s => [s, []])))
-const UNDO_LIMIT = 20
-
-function pushUndo(slot) {
-  if (!slot) return
-  const t = JSON.parse(JSON.stringify(transforms[slot]))
-  undoStacks[slot].push(t)
-  if (undoStacks[slot].length > UNDO_LIMIT) undoStacks[slot].shift()
-  redoStacks[slot] = [] // al hacer un cambio, limpiamos redo
-}
-
-function undoTransform() {
-  const slot = selectedSlot.value
-  if (!slot || undoStacks[slot].length === 0) return
-  const current = JSON.parse(JSON.stringify(transforms[slot]))
-  const last = undoStacks[slot].pop()
-  redoStacks[slot].push(current)
-  Object.assign(transforms[slot], last)
-  nextTick(() => drawSlot(slot))
-}
-
-function redoTransform() {
-  const slot = selectedSlot.value
-  if (!slot || redoStacks[slot].length === 0) return
-  const current = JSON.parse(JSON.stringify(transforms[slot]))
-  const redoState = redoStacks[slot].pop()
-  undoStacks[slot].push(current)
-  Object.assign(transforms[slot], redoState)
-  nextTick(() => drawSlot(slot))
-}
-
-const canUndo = computed(() => selectedSlot.value && undoStacks[selectedSlot.value]?.length > 0)
-const canRedo = computed(() => selectedSlot.value && redoStacks[selectedSlot.value]?.length > 0)
-
+/* refs a canvases */
 const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
       cMaxl = ref(null), cMand = ref(null), cRite = ref(null),
       cFore = ref(null), cLeft = ref(null)
 const refsMap = { Serio: cSerio, Face: cFace, Side: cSide, Maxl: cMaxl, Mand: cMand, Rite: cRite, Fore: cFore, Left: cLeft }
 
+/* archivos / selección */
 const allFiles = ref([])
 const selectedFile = ref(null)
 const selectedSlot = ref(null)
 const selectedCollection = ref(null)
 
+/* CSS vars */
 const rootStyleReactive = reactive({ '--frame-w': '220px', '--frame-h': '165px' })
 const rootStyle = rootStyleReactive
+
+/* URLs previas para revocar */
 let previousObjectUrls = []
 
-const sortedFiles = computed(() => [...allFiles.value].sort((a,b)=>a.name.localeCompare(b.name)))
+/* computed: orden alfabético para mostrar */
+const sortedFiles = computed(() => {
+  return [...allFiles.value].sort((a,b) => a.name.localeCompare(b.name))
+})
+
+/* saber si hay alguna imagen cargada */
 const hasAnyImage = computed(() => slots.some(s => !!images[s]))
+
+/* ------------------ TRANSFORMACIONES ------------------ */
+const transforms = reactive(Object.fromEntries(slots.map(s => [s, {
+  rotate: 0,
+  flipH: false,
+  flipV: false,
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0
+}])))
+
 const canTransform = computed(() => !!(selectedSlot.value && images[selectedSlot.value]))
 
 function applyTransform(action) {
   const slot = selectedSlot.value
   if (!slot) return
-  pushUndo(slot)
   const t = transforms[slot]
   switch (action) {
     case 'rotateLeft': t.rotate = (t.rotate - 90) % 360; break
@@ -229,34 +222,24 @@ function applyTransform(action) {
     case 'zoomIn': t.zoom = Math.min(3, +(t.zoom + 0.1).toFixed(2)); break
     case 'zoomOut': t.zoom = Math.max(0.5, +(t.zoom - 0.1).toFixed(2)); break
     case 'reset':
-      t.rotate = 0; t.flipH = false; t.flipV = false; t.zoom = 1; t.offsetX = 0; t.offsetY = 0
+      transforms[slot].rotate = 0
+      transforms[slot].flipH = false
+      transforms[slot].flipV = false
+      transforms[slot].zoom = 1
+      transforms[slot].offsetX = 0
+      transforms[slot].offsetY = 0
       break
   }
-  nextTick(()=>drawSlot(slot))
+  nextTick(() => drawSlot(slot))
 }
 
 function nudgeTransform(dx, dy) {
   const slot = selectedSlot.value
   if (!slot) return
-  pushUndo(slot)
-
-  const t = transforms[slot]
-  const angle = -(t.rotate || 0) * Math.PI / 180 // ángulo inverso para mantener referencia del frame
-
-  // transformar vector (dx, dy) para que respete la orientación del frame
-  const cosA = Math.cos(angle)
-  const sinA = Math.sin(angle)
-  const frameDx = dx * cosA - dy * sinA
-  const frameDy = dx * sinA + dy * cosA
-
-  t.offsetX += frameDx
-  t.offsetY += frameDy
-
+  transforms[slot].offsetX = (transforms[slot].offsetX || 0) + dx
+  transforms[slot].offsetY = (transforms[slot].offsetY || 0) + dy
   nextTick(() => drawSlot(slot))
 }
-
-
-
 
 /* ------------------ Manejo de carpeta (filtrado) ------------------ */
 function handleFolderSelect(e) {
@@ -323,30 +306,11 @@ function parseAndLoadSingle(fileObj) {
   selectedSlot.value = slot
 }
 
-/* reloadWithThese: soporta nombres tokenizados y secuenciales (DS0001...) */
 function reloadWithThese() {
   if (!selectedFile.value) return
-  const fname = selectedFile.value.name
-  const isTokenized = fname.includes('_')
-
-  if (isTokenized) {
-    const { patientId, collectionId } = parseFilename(fname)
-    selectedCollection.value = { patientId, collectionId }
-    loadFullCollection()
-  } else {
-    // flujo secuencia: asumimos que selectedFile es la primera imagen de la secuencia
-    clearAll()
-    const sorted = sortedFiles.value
-    const startIdx = sorted.findIndex(f => f.name === fname)
-    if (startIdx < 0) return
-    const sequenceMap = ['Fore', 'Rite', 'Left', 'Mand', 'Maxl', 'Serio', 'Face', 'Side']
-    for (let i = 0; i < sequenceMap.length; i++) {
-      const f = sorted[startIdx + i]
-      if (!f) break
-      const slot = sequenceMap[i]
-      if (slot) loadImageIntoSlot(f, slot)
-    }
-  }
+  const { patientId, collectionId } = parseFilename(selectedFile.value.name)
+  selectedCollection.value = { patientId, collectionId }
+  loadFullCollection()
 }
 
 function loadFullCollection() {
@@ -437,70 +401,23 @@ function clearAll() {
   selectedCollection.value = null
 }
 
-
-
-/* ---------- SAVE ALL corregido para respetar offsets y tamaño original ---------- */
 function saveAll() {
   slots.forEach(s => {
-    const img = images[s]
-    if (!img) return
-
-    const t = transforms[s] || { rotate:0, flipH:false, flipV:false, zoom:1, offsetX:0, offsetY:0 }
-    const origW = img.width
-    const origH = img.height
-
-    // recuperar tamaño del canvas de la vista (frame) para calcular baseScale
-    const frameCanvas = refsMap[s] && refsMap[s].value
-    const fw = frameCanvas ? Math.max(1, Math.round(frameCanvas.clientWidth)) : origW
-    const fh = frameCanvas ? Math.max(1, Math.round(frameCanvas.clientHeight)) : origH
-
-    // baseScale = escala usada para ajustar la imagen al frame
-    const baseScale = Math.min(fw / origW, fh / origH) || 1
-    const totalScale = baseScale * (t.zoom || 1) || 1
-
-    // offset en unidades de imagen (coincide con offsetAdj usado en drawSlot)
-    const offsetXAdj = (t.offsetX || 0) / totalScale
-    const offsetYAdj = (t.offsetY || 0) / totalScale
-
-    // canvas temporal con tamaño original
-    const tmpCanvas = document.createElement('canvas')
-    tmpCanvas.width = origW
-    tmpCanvas.height = origH
-    const ctx = tmpCanvas.getContext('2d')
-
-    // fondo blanco para JPEG
-    ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, origW, origH)
-
-    // aplicar transformaciones: translate centro, rotate, scale por zoom (no baseScale)
-    ctx.save()
-    ctx.translate(origW / 2, origH / 2)
-    ctx.rotate((t.rotate || 0) * Math.PI / 180)
-    const scaleX = (t.flipH ? -1 : 1) * (t.zoom || 1)
-    const scaleY = (t.flipV ? -1 : 1) * (t.zoom || 1)
-    ctx.scale(scaleX, scaleY)
-
-    // dibujar imagen en su tamaño original pero desplazada según offsetAdj
-    ctx.drawImage(img, -origW / 2 + offsetXAdj, -origH / 2 + offsetYAdj, origW, origH)
-    ctx.restore()
-
-    // exportar como blob (JPEG)
-    tmpCanvas.toBlob(blob => {
-      if (!blob) return
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = fileNames[s] || `${s}.jpg`
-      a.click()
-      URL.revokeObjectURL(a.href)
-    }, 'image/jpeg', 0.95)
+    const cref = refsMap[s]
+    const canvas = cref && cref.value
+    if (!canvas) return
+    const data = canvas.toDataURL('image/jpeg', 0.92)
+    const link = document.createElement('a')
+    link.href = data
+    link.download = `${s}.jpg`
+    link.click()
   })
 }
 
 /* ------------------ Resize logic ------------------ */
 let resizeTimer = null
 function computeSizes() {
-  // actualizamos rightPanelWidth a 440 para coincidir con UI
-  const rightPanelWidth = 440
+  const rightPanelWidth = 360
   const horizontalGap = 12
   const verticalGapsTotal = 2*12
   const vw = window.innerWidth
@@ -545,47 +462,33 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* Base layout (igual a la versión buena) */
 .app-root { display:flex; height:100vh; background:#f6f7f8; font-family:sans-serif; box-sizing:border-box; }
-
-/* LEFT (frames) */
-.left-column { flex:1; display:grid; grid-template-rows:auto auto auto; gap:12px; padding:12px; box-sizing:border-box; justify-items:center; overflow-y:auto; }
+.left-column { flex:1; display:grid; grid-template-rows:auto auto auto; gap:12px; padding:12px; justify-items:center; overflow-y:auto; }
 .row { width:100%; display:flex; justify-content:center; }
 .row-1, .row-3 { display:grid; grid-template-columns:repeat(3,var(--frame-w)); gap:12px; justify-content:center; }
 .row2-inner { display:flex; gap:12px; justify-content:center; }
 
-/* FRAME */
 .frame { background:#fff; border:1.5px solid #e2e6ea; border-radius:8px; box-shadow:0 1px 4px rgba(20,20,20,0.03); display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
 .frame-horizontal { width:var(--frame-w); height:var(--frame-h); min-width:120px; min-height:90px; }
 .frame-vertical { width:var(--frame-w); height:calc(var(--frame-w)*1.3333); min-width:120px; min-height:160px; }
 .placeholder { color:#6b7280; font-weight:700; }
 .frame canvas { width:100%; height:100%; display:block; }
+
 .frame.selected { border:2px solid #0b63d6; box-shadow:0 6px 18px rgba(11,99,214,0.12); }
 
-/* RIGHT panel (ancho aumentado a 440px) */
-.right-panel { width:440px; box-sizing:border-box; border-left:1px solid #e6e8ea; background:#fff; display:flex; flex-direction:column; overflow:auto; padding:14px; }
-
-/* toolbar */
-.toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.toolbar-title { margin:0; font-size:16px; font-weight:600; }
-.quick-save { background:transparent; border:none; cursor:pointer; font-size:18px; }
-
-/* secciones */
-.panel-section { padding:10px 0; border-bottom:1px solid #f1f3f4; }
-.panel-section h4 { margin:0 0 6px 0; font-size:14px; }
-.muted { color:#6b7280; font-size:13px; margin-bottom:6px; }
-
-/* botones */
-.btn { display:inline-block; padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; margin-right:8px; }
-.btn:disabled { opacity:0.5; cursor:not-allowed; }
+.right-panel { width:360px; border-left:1px solid #e6e8ea; background:#fff; display:flex; flex-direction:column; overflow:auto; box-sizing:border-box; }
+.panel-section { padding:14px; border-bottom:1px solid #f1f3f4; }
+.muted { color:#6b7280; font-size:13px; margin-bottom:8px; }
+.btn { padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; margin-right:6px; }
 .btn.primary { background:#0b63d6; color:#fff; border-color:#0b63d6; }
-.btn.full { width:100%; }
 
-/* acciones */
-.actions-row { display:flex; gap:8px; }
+.transform-grid .row-btns { display:flex; gap:6px; flex-wrap:wrap; }
+.btn.small { padding:6px 8px; font-size:13px; }
+.btn.tiny { padding:4px 6px; font-size:12px; }
 
-/* file-list reducido a 200px */
-.file-list { max-height:200px; overflow:auto; margin-top:8px; border:1px solid #e5e7eb; background:#fff; border-radius:6px; }
+.nudge-block { display:flex; flex-direction:column; align-items:center; }
+
+.file-list { max-height:260px; overflow:auto; margin-top:8px; border:1px solid #e5e7eb; background:#fff; }
 .file-list table { width:100%; border-collapse:collapse; font-size:13px; }
 .file-list tr { cursor:pointer; }
 .file-list tr.selected { background:#e6f0ff; }
@@ -593,65 +496,12 @@ onBeforeUnmount(() => {
 .thumb img { width:40px; height:30px; object-fit:cover; }
 .fname { padding-left:6px; }
 
-/* mapping table */
 .map-table { width:100%; border-collapse:collapse; font-size:13px; }
 .map-table th, .map-table td { border:1px solid #e6e6e6; padding:6px 8px; }
 .col-vista { width:40%; font-weight:700; }
 
-/* transform controls */
-.transform-grid .row-btns { display:flex; gap:6px; flex-wrap:wrap; }
-.btn.small { padding:6px 8px; font-size:13px; }
-.btn.tiny { padding:4px 6px; font-size:12px; }
-.nudge-block { display:flex; flex-direction:column; align-items:center; }
-.nudge-hint { color:#6b7280; font-size:12px; }
-
-/* sticky save */
-.sticky-save { position:sticky; bottom:0; background:#fff; padding-top:10px; padding-bottom:6px; border-top:1px solid #e6e8ea; }
-
-/* responsive */
 @media (max-width:920px) {
   .app-root { flex-direction:column; }
   .right-panel { width:100%; border-left:none; border-top:1px solid #e6e8ea; }
-  :root { --frame-w: 140px; --frame-h: 105px; }
-}
-
-/* ICONS & NUDGES - ajustes estéticos */
-.icon-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: center;
-}
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-}
-.icon {
-  width: 18px;
-  height: 18px;
-  stroke: #374151;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.icon-btn:hover .icon { stroke: #0b63d6; }
-.nudge-inline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-left: 10px;
-}
-.nudge-inline .btn.tiny {
-  min-width: 34px;
-  padding: 4px 6px;
-  text-align: center;
-  border-radius: 6px;
 }
 </style>

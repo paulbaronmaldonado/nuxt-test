@@ -90,7 +90,6 @@
           <button class="btn" @click="clearAll">Clear all</button>
           <button class="btn primary" :disabled="!selectedFile" @click="reloadWithThese">Load images</button>
           <button class="btn" :disabled="!canUndo" @click="undoTransform">Undo</button>
-          <button class="btn" :disabled="!canRedo" @click="redoTransform">Redo</button>
         </div>
       </section>
 
@@ -146,6 +145,7 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 
+/* ---------- Config ---------- */
 const slots = ['Serio','Face','Side','Maxl','Mand','Rite','Fore','Left']
 
 const viewMap = {
@@ -159,12 +159,13 @@ const viewMap = {
   Left: ['left','left buccal']
 }
 
+/* ---------- Estado ---------- */
 const images = reactive(Object.fromEntries(slots.map(s => [s, null])))
 const fileNames = reactive(Object.fromEntries(slots.map(s => [s, null])))
 const transforms = reactive(Object.fromEntries(slots.map(s => [s, { rotate:0, flipH:false, flipV:false, zoom:1, offsetX:0, offsetY:0 }])))
 
+/* Undo stacks */
 const undoStacks = reactive(Object.fromEntries(slots.map(s => [s, []])))
-const redoStacks = reactive(Object.fromEntries(slots.map(s => [s, []])))
 const UNDO_LIMIT = 20
 
 function pushUndo(slot) {
@@ -172,46 +173,34 @@ function pushUndo(slot) {
   const t = JSON.parse(JSON.stringify(transforms[slot]))
   undoStacks[slot].push(t)
   if (undoStacks[slot].length > UNDO_LIMIT) undoStacks[slot].shift()
-  redoStacks[slot] = [] // al hacer un cambio, limpiamos redo
 }
-
 function undoTransform() {
   const slot = selectedSlot.value
   if (!slot || undoStacks[slot].length === 0) return
-  const current = JSON.parse(JSON.stringify(transforms[slot]))
   const last = undoStacks[slot].pop()
-  redoStacks[slot].push(current)
   Object.assign(transforms[slot], last)
   nextTick(() => drawSlot(slot))
 }
-
-function redoTransform() {
-  const slot = selectedSlot.value
-  if (!slot || redoStacks[slot].length === 0) return
-  const current = JSON.parse(JSON.stringify(transforms[slot]))
-  const redoState = redoStacks[slot].pop()
-  undoStacks[slot].push(current)
-  Object.assign(transforms[slot], redoState)
-  nextTick(() => drawSlot(slot))
-}
-
 const canUndo = computed(() => selectedSlot.value && undoStacks[selectedSlot.value]?.length > 0)
-const canRedo = computed(() => selectedSlot.value && redoStacks[selectedSlot.value]?.length > 0)
 
+/* refs */
 const cSerio = ref(null), cFace = ref(null), cSide = ref(null),
       cMaxl = ref(null), cMand = ref(null), cRite = ref(null),
       cFore = ref(null), cLeft = ref(null)
 const refsMap = { Serio: cSerio, Face: cFace, Side: cSide, Maxl: cMaxl, Mand: cMand, Rite: cRite, Fore: cFore, Left: cLeft }
 
+/* archivos */
 const allFiles = ref([])
 const selectedFile = ref(null)
 const selectedSlot = ref(null)
 const selectedCollection = ref(null)
 
+/* estilo */
 const rootStyleReactive = reactive({ '--frame-w': '220px', '--frame-h': '165px' })
 const rootStyle = rootStyleReactive
 let previousObjectUrls = []
 
+/* computed */
 const sortedFiles = computed(() => [...allFiles.value].sort((a,b)=>a.name.localeCompare(b.name)))
 const hasAnyImage = computed(() => slots.some(s => !!images[s]))
 const canTransform = computed(() => !!(selectedSlot.value && images[selectedSlot.value]))
@@ -229,34 +218,25 @@ function applyTransform(action) {
     case 'zoomIn': t.zoom = Math.min(3, +(t.zoom + 0.1).toFixed(2)); break
     case 'zoomOut': t.zoom = Math.max(0.5, +(t.zoom - 0.1).toFixed(2)); break
     case 'reset':
-      t.rotate = 0; t.flipH = false; t.flipV = false; t.zoom = 1; t.offsetX = 0; t.offsetY = 0
+      transforms[slot].rotate = 0
+      transforms[slot].flipH = false
+      transforms[slot].flipV = false
+      transforms[slot].zoom = 1
+      transforms[slot].offsetX = 0
+      transforms[slot].offsetY = 0
       break
   }
   nextTick(()=>drawSlot(slot))
 }
 
-function nudgeTransform(dx, dy) {
-  const slot = selectedSlot.value
-  if (!slot) return
+function nudgeTransform(dx,dy){
+  const slot=selectedSlot.value
+  if(!slot)return
   pushUndo(slot)
-
-  const t = transforms[slot]
-  const angle = -(t.rotate || 0) * Math.PI / 180 // ángulo inverso para mantener referencia del frame
-
-  // transformar vector (dx, dy) para que respete la orientación del frame
-  const cosA = Math.cos(angle)
-  const sinA = Math.sin(angle)
-  const frameDx = dx * cosA - dy * sinA
-  const frameDy = dx * sinA + dy * cosA
-
-  t.offsetX += frameDx
-  t.offsetY += frameDy
-
-  nextTick(() => drawSlot(slot))
+  transforms[slot].offsetX+=dx
+  transforms[slot].offsetY+=dy
+  nextTick(()=>drawSlot(slot))
 }
-
-
-
 
 /* ------------------ Manejo de carpeta (filtrado) ------------------ */
 function handleFolderSelect(e) {

@@ -235,26 +235,14 @@ function applyTransform(action) {
   nextTick(()=>drawSlot(slot))
 }
 
-function nudgeTransform(dx, dy) {
-  const slot = selectedSlot.value
-  if (!slot) return
+function nudgeTransform(dx,dy){
+  const slot=selectedSlot.value
+  if(!slot)return
   pushUndo(slot)
-
-  const t = transforms[slot]
-  const angle = -(t.rotate || 0) * Math.PI / 180 // ángulo inverso para mantener referencia del frame
-
-  // transformar vector (dx, dy) para que respete la orientación del frame
-  const cosA = Math.cos(angle)
-  const sinA = Math.sin(angle)
-  const frameDx = dx * cosA - dy * sinA
-  const frameDy = dx * sinA + dy * cosA
-
-  t.offsetX += frameDx
-  t.offsetY += frameDy
-
-  nextTick(() => drawSlot(slot))
+  transforms[slot].offsetX+=dx
+  transforms[slot].offsetY+=dy
+  nextTick(()=>drawSlot(slot))
 }
-
 
 
 
