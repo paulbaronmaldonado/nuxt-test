@@ -576,119 +576,16 @@ function handleResize() {
   resizeTimer = setTimeout(() => computeSizes(), 120)
 }
 
-
-
-function handleKeydown(e) {
-  // Si no hay imagen seleccionada, ignorar
-  if (!selectedSlot.value) return
-
-  const key = e.key.toLowerCase()
-  const isCmdOrCtrl = e.metaKey || e.ctrlKey
-
-  // === Undo / Redo ===
-  if (isCmdOrCtrl && key === 'z' && !e.shiftKey) {
-    e.preventDefault()
-    undoTransform()
-    return
-  }
-  if (isCmdOrCtrl && key === 'z' && e.shiftKey) {
-    e.preventDefault()
-    redoTransform()
-    return
-  }
-
-  // === Rotaciones ===
-  if (key === '[') {
-    e.preventDefault()
-    if (e.ctrlKey) {
-      // rotar 1° a la izquierda
-      pushUndo(selectedSlot.value)
-      transforms[selectedSlot.value].rotate -= 1
-      nextTick(()=>drawSlot(selectedSlot.value))
-    } else {
-      applyTransform('rotateLeft')
-    }
-    return
-  }
-  if (key === ']') {
-    e.preventDefault()
-    if (e.ctrlKey) {
-      // rotar 1° a la derecha
-      pushUndo(selectedSlot.value)
-      transforms[selectedSlot.value].rotate += 1
-      nextTick(()=>drawSlot(selectedSlot.value))
-    } else {
-      applyTransform('rotateRight')
-    }
-    return
-  }
-
-  // === Flip ===
-  if (key === 'h') {
-    e.preventDefault()
-    applyTransform('flipH')
-    return
-  }
-  if (key === 'v') {
-    e.preventDefault()
-    applyTransform('flipV')
-    return
-  }
-
-  // === Zoom ===
-  if (key === '=' || key === '+') {
-    e.preventDefault()
-    applyTransform('zoomIn')
-    return
-  }
-  if (key === '-' || key === '_') {
-    e.preventDefault()
-    applyTransform('zoomOut')
-    return
-  }
-
-  // === Nudges (flechas) ===
-  const step = 10
-  if (key === 'arrowup') {
-    e.preventDefault()
-    nudgeTransform(0, -step)
-    return
-  }
-  if (key === 'arrowdown') {
-    e.preventDefault()
-    nudgeTransform(0, step)
-    return
-  }
-  if (key === 'arrowleft') {
-    e.preventDefault()
-    nudgeTransform(-step, 0)
-    return
-  }
-  if (key === 'arrowright') {
-    e.preventDefault()
-    nudgeTransform(step, 0)
-    return
-  }
-}
-
-
-
-
-
-
-
 /* lifecycle */
 onMounted(() => {
   computeSizes()
   window.addEventListener('resize', handleResize)
-  window.addEventListener('keydown', handleKeydown)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   previousObjectUrls.forEach(url => URL.revokeObjectURL(url))
   previousObjectUrls = []
-  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
