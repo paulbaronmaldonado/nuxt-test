@@ -610,6 +610,17 @@ function handleKeydown(e) {
     }
     return
   }
+
+  if (key === ',') {
+    e.preventDefault()
+    // rotar 1° a la izquierda
+    pushUndo(selectedSlot.value)
+    transforms[selectedSlot.value].rotate -= 1
+    nextTick(()=>drawSlot(selectedSlot.value))
+
+    return
+  }
+
   if (key === ']') {
     e.preventDefault()
     if (e.ctrlKey) {
@@ -620,6 +631,16 @@ function handleKeydown(e) {
     } else {
       applyTransform('rotateRight')
     }
+    return
+  }
+
+  if (key === '.') {
+    e.preventDefault()
+    // rotar 1° a la derecha
+    pushUndo(selectedSlot.value)
+    transforms[selectedSlot.value].rotate += 1
+    nextTick(()=>drawSlot(selectedSlot.value))
+    
     return
   }
 
